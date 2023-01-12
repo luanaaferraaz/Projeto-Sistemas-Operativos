@@ -298,8 +298,8 @@ void work(int max_sessions){
             char *client_name = strtok(NULL, "|");
             char *box_name = strtok(NULL, "|");
             
-            if(strcmp(code, creating_manager) == 0) { work_manager_creating(client_name, box_name);}
-            //if it is not creating, it is removing
+            if(strcmp(code, creating_manager) == 0) { work_with_manager_creating(client_name, box_name);}
+            //if it is not creating, it is removing 
             else { work_with_manager_removing(client_name, box_name); }
         }
         else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); }
