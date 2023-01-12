@@ -38,7 +38,7 @@ void send_message_to_mb(char *message, char *pipe_name){
   //mensagem ler da pipe e escrever no ficheiro no tfs
 }
 
-void wait_for_messages(){
+void wait_for_messages(){ // wait for input messages
     char *reading = NULL;
     while(true){
         puts("write a message:");

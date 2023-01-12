@@ -6,7 +6,6 @@
 #define SIZE 32
 
 
-
 int isFull(pc_queue_t *queue) {
     if ((queue->pcq_head == queue->pcq_tail + 1) || 
     (queue->pcq_head == 1 && queue->pcq_tail == SIZE)) {
@@ -45,8 +44,6 @@ int pcq_create(pc_queue_t *queue, size_t capacity) {
     }
     return -1;
     
-    
-
 }
 
 // pcq_destroy: releases the internal resources of the queue

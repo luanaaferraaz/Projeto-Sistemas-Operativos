@@ -15,7 +15,7 @@
 char box_name[MAX_BOX_NAME];
 char sub_pipe_name[MAX_CLIENT_PIPE_NAME];
 
-void wait_for_messages(){
+void wait_for_messages() { // wait for publisher messages
     //talvez esperar por um signal
     int pipe_on = open(sub_pipe_name, O_RDONLY);
     if(pipe_on == -1){

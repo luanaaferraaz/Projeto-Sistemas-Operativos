@@ -35,6 +35,27 @@ struct box_info{
 struct box_info boxes[MAX_BOXES];
 
 
+void write_message(char *message, char *box_name){ // write message in box (write on a tfs file)
+    int handler = 0;
+    if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
+        fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
+                            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    strcat(message, "\0");
+
+    ssize_t written = 0;
+    if((written = tfs_write(handler, message, strlen(message)))==-1){
+        fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
+                            strerror(errno));
+        exit(EXIT_FAILURE);
+    } 
+    if(tfs_close(handler)==-1){
+        fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
+            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
 
 void work_with_sub(){
     char *client_name = strtok(NULL, "|");
@@ -58,28 +79,6 @@ void work_with_sub(){
     }
     
     send_connected_msg(client_name, connected);
-}
-
-void write_message(char *message, char *box_name){
-    int handler = 0;
-    if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
-        fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
-                            strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    strcat(message, "\0");
-
-    ssize_t written = 0;
-    if((written = tfs_write(handler, message, strlen(message)))==-1){
-        fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
-                            strerror(errno));
-        exit(EXIT_FAILURE);
-    } 
-    if(tfs_close(handler)==-1){
-        fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
-            strerror(errno));
-        exit(EXIT_FAILURE);
-    }
 }
 
 void work_with_pub(){
@@ -260,12 +259,13 @@ void work_with_manager_listing(){
     
 }
 
+// check if create the box give an error and send error message(that is "" if noting wrong happened) to send_response
 void work_with_manager_creating(char *client_name, char *box_name){
-    int return_code = 0;
+    int return_code = 0; // return code indicates if the box is created with success
     char error_message[MAX_ERROR_MESSAGE] = "\0";
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
-            if(strcmp(boxes[i].manager_name, client_name)!=0){
+            if(strcmp(boxes[i].manager_name, client_name)!=0){ //  box_name is equal to other box so we check if it is in a different manager
                 if (unlink(client_name) != 0 && errno != ENOENT) {
                     fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
                     strerror(errno));
@@ -277,7 +277,7 @@ void work_with_manager_creating(char *client_name, char *box_name){
                 }
                 strcpy(error_message, "Box already exists associated with another manager: ");
                 strcat(error_message, box_name);
-            }else{
+            }else{ // if is equal we try to create a box at the same manager, wich is impossible
                 strcpy(error_message, "Duplicated box: ");
                 strcat(error_message, box_name);
             }
@@ -299,7 +299,7 @@ void work_with_manager_creating(char *client_name, char *box_name){
         }
         
         for(int i = 0; i < (MAX_BOX_NAME); i++) {
-            if(strcmp(boxes[i].box_name, "") == 0) {
+            if(strcmp(boxes[i].box_name, "") == 0) { // put the new box in the first element of array that is available
                 strcpy(boxes[i].box_name,box_name);
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
@@ -323,13 +323,15 @@ void work_with_manager_creating(char *client_name, char *box_name){
     
 }
 
-void work_with_manager_removing(char *client_name, char *box_name){
+// just check if remove the box give an error and send error message (that is "" if noting wrong happened) to send_response
+void work_with_manager_removing(char *client_name, char *box_name) { 
+
     int return_code = -1;
     char error_message[MAX_ERROR_MESSAGE] = "\0";
-    int removed = -1;
+    int removed = -1; // initialize removed as if the box do not exist
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
-            removed = -2;
+            removed = -2; // if the box exist change removed value
             if(strcmp(boxes[i].manager_name, client_name)==0){
                 int file_box = tfs_unlink(box_name);
                 if(file_box == -1) {
@@ -337,7 +339,7 @@ void work_with_manager_removing(char *client_name, char *box_name){
                     strcpy(error_message, "Failed to remove box: ");
                     strcat(error_message, box_name);
                 }
-                removed = 0;
+                removed = 0; // if client_name is the same the box are not associated with another manager, so creating the box is ok
                 strcpy(boxes[i].box_name, "");
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
@@ -370,7 +372,7 @@ void work_with_manager_removing(char *client_name, char *box_name){
                 
 }
 
-void *work(){
+void *work() { // read buffer and with is code choose wich action to do
     int rx = open(server_pipe_name, O_RDONLY);
     if(rx==-1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", server_pipe_name,
@@ -398,7 +400,8 @@ void *work(){
         
         if(strcmp(code, sub)==0){ work_with_sub();}
 
-        else if(strcmp(code, creating_manager) == 0 || strcmp(code, removing_manager) == 0) { //create or remove box   
+        else if(strcmp(code, creating_manager) == 0 || 
+            strcmp(code, removing_manager) == 0) { //create or remove box   
             char *client_name = strtok(NULL, "|");
             char *box_name = strtok(NULL, "|");
             
@@ -413,13 +416,12 @@ void *work(){
             strerror(errno));
             exit(EXIT_FAILURE);
         }
-        //-----------------falta respostassssss??????-------------
         
         buffer[ret] = 0;
     }
 }
 
-void createThreads(int max_sessions){
+void createThreads(int max_sessions) { // create all (max_sessions) threads at the beginning of the program
     pthread_t tid[max_sessions];
 
     for(int i=0; i<max_sessions; i++){
@@ -464,8 +466,6 @@ int main(int argc, char **argv) {
         int max_sessions = atoi(max_sessions_str);
         tfs_init(NULL);
         createThreads(max_sessions);
-        //
-        //work(max_sessions);
       
     }
 
