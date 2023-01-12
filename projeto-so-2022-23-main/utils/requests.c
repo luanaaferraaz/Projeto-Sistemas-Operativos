@@ -120,9 +120,10 @@ void send_msg_request_list(int pipe, char *code, char *client_pipe_name){
   }
 }
 
-void send_msg_request(int pipe, char *code, char *client_pipe_name, char* box_name){
-  char buffer[MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+20] = "";
+// wire protocol - write on pipe and made the interaction between server and clients with pipe messages
+void send_msg_request(int pipe, char *code, char *client_pipe_name, char* box_name) {
 
+  char buffer[MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+20] = "";
   strcat(buffer, code);
   strcat(buffer, "|");
   strcat(buffer, client_pipe_name);
@@ -142,12 +143,11 @@ void send_msg_request(int pipe, char *code, char *client_pipe_name, char* box_na
 }
 
 
-// receive the code 
+// receive the code of the action and call send_msg_request with opened pipe and the respective code
 void send_request(int code, char* register_pipe_name, char *client_pipe_name, char *box_name) {
 
     memset(register_pipe_name + strlen(register_pipe_name), '\0', 
     sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(register_pipe_name)) -1);
-
     memset(client_pipe_name + strlen(client_pipe_name), '\0', 
     sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_pipe_name)) -1);
     memset(box_name + strlen(box_name), '\0', 
@@ -166,13 +166,10 @@ void send_request(int code, char* register_pipe_name, char *client_pipe_name, ch
     }
     else if(code == CREATE_MANAGER) {
       send_msg_request(pub_pipe, "3", client_pipe_name, box_name); 
-      //-----------------falta respostassssss??????-------------------------------
     }
     else if(code == REMOVE_MANAGER) {
       send_msg_request(pub_pipe, "5", client_pipe_name, box_name); 
-      //-----------------falta respostassssss??????---------------------------
     }
-
 }
 
 void send_request_list(char* register_pipe_name, char *client_pipe_name){
