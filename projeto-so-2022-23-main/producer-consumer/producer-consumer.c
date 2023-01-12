@@ -3,13 +3,13 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define SIZE 5
+#define SIZE 32
 
-void *items[SIZE];
 
 
 int isFull(pc_queue_t *queue) {
-    if ((queue->pcq_head == queue->pcq_tail + 1) || (queue->pcq_head == 1 && queue->pcq_tail == SIZE)) {
+    if ((queue->pcq_head == queue->pcq_tail + 1) || 
+    (queue->pcq_head == 1 && queue->pcq_tail == SIZE)) {
         return 1;
     }
     return 0;
@@ -27,8 +27,14 @@ int isEmpty(pc_queue_t *queue) {
 // Memory: the queue pointer must be previously allocated
 // (either on the stack or the heap)
 int pcq_create(pc_queue_t *queue, size_t capacity) {
-//
-    queue = malloc(sizeof(*queue) * capacity);
+
+    //queue = malloc(sizeof(*queue) * capacity);
+
+    queue->pcq_buffer = malloc(capacity * sizeof(void*));
+    for (int i=0; i<capacity; ++i) {
+        queue->pcq_buffer[i] = malloc(capacity * sizeof(void));
+    }
+
     if(queue)
     {
         queue->pcq_capacity = capacity;
@@ -47,7 +53,15 @@ int pcq_create(pc_queue_t *queue, size_t capacity) {
 //
 // Memory: does not free the queue pointer itself
 int pcq_destroy(pc_queue_t *queue) {
-    free(queue);
+
+    for (int i=0; i<queue->pcq_capacity; ++i) {
+        free(queue->pcq_buffer[i]);
+    }
+
+    free(queue->pcq_buffer);
+
+    //free(queue);
+
     return 0;
 }
 
@@ -66,7 +80,7 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
         queue->pcq_head = 1;
     }
     queue->pcq_head = (queue->pcq_head) % SIZE;
-    items[queue->pcq_head] = elem;
+    queue->pcq_buffer[queue->pcq_head] = elem;
     queue->pcq_current_size++;
     return 0;
 }
