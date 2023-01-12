@@ -25,7 +25,6 @@ void send_message_to_mb(char *message, char *pipe_name){
   }
   size_t len = strlen(message);
   size_t written = 0;
-  puts(box_name);
   while (written < len) {
 
       ssize_t ret = write(pub_pipe, message + written, len - written);

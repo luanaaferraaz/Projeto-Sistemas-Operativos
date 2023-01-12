@@ -29,6 +29,7 @@ struct box_info{
     char box_name[MAX_BOX_NAME];
     int pub_counter;
     int sub_counter;
+    char manager_name[MAX_CLIENT_PIPE_NAME];
 };
 
 struct box_info boxes[MAX_BOXES];
@@ -67,13 +68,13 @@ void write_message(char *message, char *box_name){
         exit(EXIT_FAILURE);
     }
     strcat(message, "\0");
+
     ssize_t written = 0;
     if((written = tfs_write(handler, message, strlen(message)))==-1){
         fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
                             strerror(errno));
         exit(EXIT_FAILURE);
     } 
-    printf("wrote: %lu\n", written);
     if(tfs_close(handler)==-1){
         fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
             strerror(errno));
@@ -110,7 +111,6 @@ void work_with_pub(){
                 strerror(errno));
         exit(EXIT_FAILURE);
     }
-    puts("opened pipe");
     while(true){
         char buffer[BUFFER_SIZE] = "";
         ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
@@ -121,24 +121,15 @@ void work_with_pub(){
                 strerror(errno));
             exit(EXIT_FAILURE); 
         }
-        puts("ola");
         //read something
         puts(buffer);
         char *code_received=strtok(buffer, "|");
         if(atoi(code_received)==9){
             char *message=strtok(NULL, "\0");
             write_message(message, box_name);
-
-            while(message!=NULL){
-                message=strtok(NULL, "\0");
-                write_message(message, box_name);
-
-            }
         }
     }
 }
-
-
 
 void work_with_manager_listing(){
     char *client_name = strtok(NULL, "|");
@@ -174,7 +165,7 @@ void work_with_manager_listing(){
     }
     
     for(int i = 0; i < MAX_BOXES; i++) {
-        if(strcmp(boxes[i].box_name, "") != 0) {
+        if(strcmp(boxes[i].box_name, "") != 0 && strcmp(boxes[i].manager_name, client_name)==0) {
             found=true;
             long int n_publishers = 0, n_subscribers = 0;
             n_publishers = boxes[i].pub_counter;
@@ -274,9 +265,23 @@ void work_with_manager_creating(char *client_name, char *box_name){
     char error_message[MAX_ERROR_MESSAGE] = "\0";
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
+            if(strcmp(boxes[i].manager_name, client_name)!=0){
+                if (unlink(client_name) != 0 && errno != ENOENT) {
+                    fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
+                    strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
+                if((mkfifo(client_name, 0640))!=0){
+                    fprintf(stderr,"Failed to create fifo here.\n");
+                    exit(EXIT_FAILURE);
+                }
+                strcpy(error_message, "Box already exists associated with another manager: ");
+                strcat(error_message, box_name);
+            }else{
+                strcpy(error_message, "Duplicated box: ");
+                strcat(error_message, box_name);
+            }
             return_code = -1;
-            strcpy(error_message, "Duplicated box: ");
-            strcat(error_message, box_name);
             break;
         }
     }
@@ -298,6 +303,7 @@ void work_with_manager_creating(char *client_name, char *box_name){
                 strcpy(boxes[i].box_name,box_name);
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
+                strcpy(boxes[i].manager_name, client_name);
                 break;
             }
         }
@@ -318,29 +324,38 @@ void work_with_manager_creating(char *client_name, char *box_name){
 }
 
 void work_with_manager_removing(char *client_name, char *box_name){
-    int return_code = 0;
+    int return_code = -1;
     char error_message[MAX_ERROR_MESSAGE] = "\0";
     int removed = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
-            int file_box = tfs_unlink(box_name);
-            if(file_box == -1) {
-                return_code = -1;
-                strcpy(error_message, "Failed to remove box: ");
-                strcat(error_message, box_name);
+            removed = -2;
+            if(strcmp(boxes[i].manager_name, client_name)==0){
+                int file_box = tfs_unlink(box_name);
+                if(file_box == -1) {
+                    return_code = -1;
+                    strcpy(error_message, "Failed to remove box: ");
+                    strcat(error_message, box_name);
+                }
+                removed = 0;
+                strcpy(boxes[i].box_name, "");
+                boxes[i].pub_counter = 0;
+                boxes[i].sub_counter = 0;
+                strcpy(boxes[i].manager_name, "");
+                return_code = 0;
             }
-            removed = 0;
-            strcpy(boxes[i].box_name, "");
-            boxes[i].pub_counter = 0;
-            boxes[i].sub_counter = 0;
             break;
         }
     }
-    if(removed == -1) {
+    //found the box, however cannot remove it, it is associated with another manager
+    if(removed == -2){
+        strcpy(error_message, "Box (");
+        strcat(error_message, box_name);
+        strcat(error_message, ") associated with another manager.");
+    } else if(removed == -1) {
         strcpy(error_message, "Box (");
         strcat(error_message, box_name);
         strcat(error_message, ") does not exist.");
-        return_code = -1;
     }
     if (unlink(client_name) != 0 && errno != ENOENT) {
         fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,

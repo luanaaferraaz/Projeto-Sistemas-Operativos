@@ -12,13 +12,11 @@
 
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
 void send_message(char *message, char *box_name, char *pipe_name){
-  puts("will open pipe");
   int pub_pipe = open(pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
   if(pub_pipe==-1){
     fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
-  puts("opened pipe");
   size_t len = strlen(message);
   size_t written = 0;
   puts(box_name);
