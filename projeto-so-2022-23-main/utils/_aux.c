@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-int write_connected_message(int pipe, char *message){
+int write_connected_message(int pipe, char *message){ 
   size_t len = strlen(message);
   size_t written = 0;
 
@@ -27,7 +27,7 @@ int write_connected_message(int pipe, char *message){
   return 0;
 }
 
-void send_connected_msg(char *client_name, bool connected){
+void send_connected_msg(char *client_name, bool connected){ //if is connected write in client_name
     int rd = open(client_name, O_WRONLY);
     if(rd==-1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
@@ -47,7 +47,7 @@ void send_connected_msg(char *client_name, bool connected){
     }
 }
 
-int check_connected(char *pipe_name){
+int check_connected(char *pipe_name){ //check if pipe_name is connected to box
     sleep(1);
     int pipe_on = open(pipe_name, O_RDONLY);
     if(pipe_on == -1){
@@ -56,16 +56,16 @@ int check_connected(char *pipe_name){
     }
     while(true){
         char buffer[3] = "";
-        ssize_t ret = read(pipe_on, buffer, 3 - 1);
+        ssize_t ret = read(pipe_on, buffer, 3 - 1); // len of buffer - last char
         if (ret == 0) {
             continue;
-        }else if(ret==-1){
+        }else if(ret == -1){
             fprintf(stderr,"Failed to read from pipe(%s): %s\n", pipe_name,
                 strerror(errno));
             exit(EXIT_FAILURE); 
         }
-        if(strcmp(buffer, "-1")==0){
-            if(close(pipe_on)==-1){
+        if(strcmp(buffer, "-1") == 0){
+            if(close(pipe_on) == -1){
                 return -1;
             }
             return -1;

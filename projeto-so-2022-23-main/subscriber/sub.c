@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
         strcpy(sub_pipe_name, argv[2]);
         strcpy(box_name, argv[3]);
         send_request(SUBSCRIBER, register_pipe, sub_pipe_name, box_name);
-        if(check_connected(sub_pipe_name)==-1){
+        if(check_connected(sub_pipe_name)==-1){ //check if sub connected to box specified in input
             printf("Couldn't connect to: %s\n", box_name);
             exit(EXIT_FAILURE);
         }

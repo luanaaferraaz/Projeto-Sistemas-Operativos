@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
         strcpy(pub_pipe_name, argv[2]); //client_pipe_name
         strcpy(box_name, argv[3]);
         send_request(PUBLISHER, register_pipe, pub_pipe_name, box_name);
-        if(check_connected(pub_pipe_name)==-1){
+        if(check_connected(pub_pipe_name)==-1){ //check if sub connected to box specified in input
             exit(EXIT_FAILURE);
         }
         wait_for_messages();
