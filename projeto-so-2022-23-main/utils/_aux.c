@@ -1,4 +1,4 @@
-#include "aux.h"
+#include "_aux.h"
 #include "logging.h"
 #include <stdio.h>
 #include <stdlib.h>

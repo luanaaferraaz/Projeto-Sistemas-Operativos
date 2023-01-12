@@ -13,7 +13,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "utils/requests.h"
-#include "utils/aux.h"
+#include "utils/_aux.h"
 #include "fs/operations.h"
 
 #define BUFFER_SIZE (MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+4)
