@@ -48,7 +48,11 @@ void wait_for_messages(){
         lineSize = getline(&reading, &len, stdin);
         if(lineSize > 0) {
             printf("got your message: %s\n", reading);
-            send_message_to_mb(reading, pub_pipe_name);
+            char message[1024]="";
+            strcat(message, "9");
+            strcat(message, "|");
+            strcat(message, reading);
+            send_message_to_mb(message, pub_pipe_name);
             free(reading);
         }
     }

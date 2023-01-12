@@ -59,6 +59,28 @@ void work_with_sub(){
     send_connected_msg(client_name, connected);
 }
 
+void write_message(char *message, char *box_name){
+    int handler = 0;
+    if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
+        fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
+                            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    strcat(message, "\0");
+    ssize_t written = 0;
+    if((written = tfs_write(handler, message, strlen(message)))==-1){
+        fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
+                            strerror(errno));
+        exit(EXIT_FAILURE);
+    } 
+    printf("wrote: %lu\n", written);
+    if(tfs_close(handler)==-1){
+        fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
+            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
+
 void work_with_pub(){
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
@@ -81,10 +103,54 @@ void work_with_pub(){
     }
     send_connected_msg(client_name, connected);
     //esperar por sinal p/ abrir a pipe e ler mensagens
+    
+    int rx = open(client_name, O_RDONLY);
+    if(rx==-1){
+        fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
+                strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    puts("opened pipe");
+    while(true){
+        char buffer[BUFFER_SIZE] = "";
+        ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
+        if (ret == 0) {
+            continue;
+        }else if(ret==-1){
+            fprintf(stderr,"Failed to read from pipe(%s): %s\n", client_name,
+                strerror(errno));
+            exit(EXIT_FAILURE); 
+        }
+        puts("ola");
+        //read something
+        puts(buffer);
+        char *code_received=strtok(buffer, "|");
+        if(atoi(code_received)==9){
+            char *message=strtok(NULL, "\0");
+            write_message(message, box_name);
+
+            while(message!=NULL){
+                message=strtok(NULL, "\0");
+                write_message(message, box_name);
+
+            }
+        }
+    }
 }
+
+
 
 void work_with_manager_listing(){
     char *client_name = strtok(NULL, "|");
+    if (unlink(client_name) != 0 && errno != ENOENT) {
+        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
+        strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    if((mkfifo(client_name, 0640))!=0){
+        fprintf(stderr,"Failed to create fifo here.\n");
+        exit(EXIT_FAILURE);
+    }
     char aux_box_name[MAX_BOX_NAME];
     int aux_pub_counter;
     int aux_sub_counter;
