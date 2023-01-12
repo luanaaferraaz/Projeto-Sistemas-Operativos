@@ -177,6 +177,92 @@ void work_with_manager_listing(){
     
 }
 
+void work_with_manager_creating(char *client_name, char *box_name){
+    int return_code = 0;
+    char error_message[MAX_ERROR_MESSAGE] = "\0";
+    for(int i = 0; i < MAX_BOXES; i++) {
+        if(strcmp(boxes[i].box_name, box_name) == 0) {
+            return_code = -1;
+            strcpy(error_message, "Duplicated box: ");
+            strcat(error_message, box_name);
+            break;
+        }
+    }
+    if(return_code == 0) {
+        int file_box = tfs_open(box_name,TFS_O_CREAT);
+        if(file_box == -1) {
+            return_code = -1;
+            strcpy(error_message, "Failed to open box: ");
+            strcat(error_message, box_name);
+        }
+        if(tfs_close(file_box)==-1){
+            fprintf(stderr, "[ERR]: Failed to close box (%s): %s\n", client_name,
+            strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        
+        for(int i = 0; i < (MAX_BOX_NAME); i++) {
+            if(strcmp(boxes[i].box_name, "") == 0) {
+                strcpy(boxes[i].box_name,box_name);
+                boxes[i].pub_counter = 0;
+                boxes[i].sub_counter = 0;
+                break;
+            }
+        }
+
+        if (unlink(client_name) != 0 && errno != ENOENT) {
+            fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
+            strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        if((mkfifo(client_name, 0640))!=0){
+            fprintf(stderr,"Failed to create fifo here.\n");
+            exit(EXIT_FAILURE);
+        }
+            
+    }
+    send_response(create_box_err, client_name, return_code, error_message);
+    
+}
+
+void work_with_manager_removing(char *client_name, char *box_name){
+    int return_code = 0;
+    char error_message[MAX_ERROR_MESSAGE] = "\0";
+    int removed = -1;
+    for(int i = 0; i < MAX_BOXES; i++) {
+        if(strcmp(boxes[i].box_name, box_name) == 0) {
+            int file_box = tfs_unlink(box_name);
+            if(file_box == -1) {
+                return_code = -1;
+                strcpy(error_message, "Failed to remove box: ");
+                strcat(error_message, box_name);
+            }
+            removed = 0;
+            strcpy(boxes[i].box_name, "");
+            boxes[i].pub_counter = 0;
+            boxes[i].sub_counter = 0;
+            break;
+        }
+    }
+    if(removed == -1) {
+        strcpy(error_message, "Box (");
+        strcat(error_message, box_name);
+        strcat(error_message, ") does not exist.");
+        return_code = -1;
+    }
+    if (unlink(client_name) != 0 && errno != ENOENT) {
+        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
+        strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    if((mkfifo(client_name, 0640))!=0){
+        fprintf(stderr,"Failed to create fifo here.\n");
+        exit(EXIT_FAILURE);
+    }
+    send_response(remove_box_err, client_name, return_code, error_message);
+                
+}
+
 void work(int max_sessions){
     int rx = open(server_pipe_name, O_RDONLY);
     if(rx==-1){
@@ -208,94 +294,13 @@ void work(int max_sessions){
         
         if(strcmp(code, sub)==0){ work_with_sub();}
 
-        else if(strcmp(code, creating_manager) == 0 || strcmp(code, removing_manager) == 0) { //create or remove box
-            
+        else if(strcmp(code, creating_manager) == 0 || strcmp(code, removing_manager) == 0) { //create or remove box   
             char *client_name = strtok(NULL, "|");
             char *box_name = strtok(NULL, "|");
-            if(strcmp(code, creating_manager) == 0) {
-                int return_code = 0;
-                char error_message[MAX_ERROR_MESSAGE] = "\0";
-                for(int i = 0; i < MAX_BOXES; i++) {
-                    if(strcmp(boxes[i].box_name, box_name) == 0) {
-                        return_code = -1;
-                        strcpy(error_message, "Duplicated box: ");
-                        strcat(error_message, box_name);
-                        break;
-                    }
-                }
-                if(return_code == 0) {
-                    int file_box = tfs_open(box_name,TFS_O_CREAT);
-                    if(file_box == -1) {
-                        return_code = -1;
-                        strcpy(error_message, "Failed to open box: ");
-                        strcat(error_message, box_name);
-                    }
-                    if(tfs_close(file_box)==-1){
-                        fprintf(stderr, "[ERR]: Failed to close box (%s): %s\n", client_name,
-                        strerror(errno));
-                        exit(EXIT_FAILURE);
-                    }
-                    
-                    for(int i = 0; i < (MAX_BOX_NAME); i++) {
-                        if(strcmp(boxes[i].box_name, "") == 0) {
-                            strcpy(boxes[i].box_name,box_name);
-                            boxes[i].pub_counter = 0;
-                            boxes[i].sub_counter = 0;
-                            break;
-                        }
-                    }
-
-                    if (unlink(client_name) != 0 && errno != ENOENT) {
-                        fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
-                        strerror(errno));
-                        exit(EXIT_FAILURE);
-                    }
-                    if((mkfifo(client_name, 0640))!=0){
-                        fprintf(stderr,"Failed to create fifo here.\n");
-                        exit(EXIT_FAILURE);
-                    }
-                        
-                }
-                send_response(create_box_err, client_name, return_code, error_message);
-                
-            }
-            else { //if it is not creating, it is removing
-                int return_code = 0;
-                char error_message[MAX_ERROR_MESSAGE] = "\0";
-                int removed = -1;
-                for(int i = 0; i < MAX_BOXES; i++) {
-                    if(strcmp(boxes[i].box_name, box_name) == 0) {
-                        int file_box = tfs_unlink(box_name);
-                        if(file_box == -1) {
-                            return_code = -1;
-                            strcpy(error_message, "Failed to remove box: ");
-                            strcat(error_message, box_name);
-                        }
-                        removed = 0;
-                        strcpy(boxes[i].box_name, "");
-                        boxes[i].pub_counter = 0;
-                        boxes[i].sub_counter = 0;
-                        break;
-                    }
-                }
-                if(removed == -1) {
-                    strcpy(error_message, "Box (");
-                    strcat(error_message, box_name);
-                    strcat(error_message, ") does not exist.");
-                    return_code = -1;
-                }
-                if (unlink(client_name) != 0 && errno != ENOENT) {
-                    fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
-                    strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-                if((mkfifo(client_name, 0640))!=0){
-                    fprintf(stderr,"Failed to create fifo here.\n");
-                    exit(EXIT_FAILURE);
-                }
-                send_response(remove_box_err, client_name, return_code, error_message);
-                
-            }
+            
+            if(strcmp(code, creating_manager) == 0) { work_manager_creating(client_name, box_name);}
+            //if it is not creating, it is removing
+            else { work_with_manager_removing(client_name, box_name); }
         }
         else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); }
 
