@@ -141,41 +141,38 @@ void send_msg_request(int pipe, char *code, char *client_pipe_name, char* box_na
   }
 }
 
-void send_request(int code, char* register_pipe_name, char *client_pipe_name, char *box_name){
-    memset(register_pipe_name + strlen(register_pipe_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(register_pipe_name)) -1);
 
-    //verificar se o client pipe name ja existe
-    memset(client_pipe_name + strlen(client_pipe_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_pipe_name)) -1);
-    memset(box_name + strlen(box_name), '\0', sizeof(char)*(MAX_BOX_NAME - strlen(box_name)) -1);
+// receive the code 
+void send_request(int code, char* register_pipe_name, char *client_pipe_name, char *box_name) {
 
-    if(code == PUBLISHER || code == SUBSCRIBER ){ //pub and sub
-      int pub_pipe = open(register_pipe_name, O_WRONLY);
-      if(pub_pipe==-1){
-        fprintf(stderr, "Failed to open: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-      }
-      if(code == PUBLISHER) {
-        send_msg_request(pub_pipe, "1", client_pipe_name, box_name);
-      }
-      else if(code == SUBSCRIBER) {
-        send_msg_request(pub_pipe, "2", client_pipe_name, box_name);
-      }
+    memset(register_pipe_name + strlen(register_pipe_name), '\0', 
+    sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(register_pipe_name)) -1);
+
+    memset(client_pipe_name + strlen(client_pipe_name), '\0', 
+    sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_pipe_name)) -1);
+    memset(box_name + strlen(box_name), '\0', 
+    sizeof(char)*(MAX_BOX_NAME - strlen(box_name)) -1);
+
+    int pub_pipe = open(register_pipe_name, O_WRONLY);
+    if(pub_pipe==-1){
+      fprintf(stderr, "Failed to open: %s\n", strerror(errno));
+      exit(EXIT_FAILURE);
     }
-    else if(code == CREATE_MANAGER || code == REMOVE_MANAGER) { // manager create and remove
-      int pub_pipe = open(register_pipe_name, O_WRONLY);
-      if(pub_pipe==-1){
-        fprintf(stderr, "Failed to open: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-      }
-      if(code == CREATE_MANAGER) {
-        send_msg_request(pub_pipe, "3", client_pipe_name, box_name); 
-        //-----------------falta respostassssss??????-------------------------------
-      }
-      else if(code == REMOVE_MANAGER) {
-        send_msg_request(pub_pipe, "5", client_pipe_name, box_name); 
-        //-----------------falta respostassssss??????---------------------------
-      }
+    if(code == PUBLISHER) {
+      send_msg_request(pub_pipe, "1", client_pipe_name, box_name);
     }
+    else if(code == SUBSCRIBER) {
+      send_msg_request(pub_pipe, "2", client_pipe_name, box_name);
+    }
+    else if(code == CREATE_MANAGER) {
+      send_msg_request(pub_pipe, "3", client_pipe_name, box_name); 
+      //-----------------falta respostassssss??????-------------------------------
+    }
+    else if(code == REMOVE_MANAGER) {
+      send_msg_request(pub_pipe, "5", client_pipe_name, box_name); 
+      //-----------------falta respostassssss??????---------------------------
+    }
+
 }
 
 void send_request_list(char* register_pipe_name, char *client_pipe_name){

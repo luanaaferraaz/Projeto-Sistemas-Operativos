@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "_aux.h": "c",
+        "config.h": "c"
+    }
+}

@@ -27,7 +27,7 @@ int isEmpty(pc_queue_t *queue) {
 // Memory: the queue pointer must be previously allocated
 // (either on the stack or the heap)
 int pcq_create(pc_queue_t *queue, size_t capacity) {
-
+//
     queue = malloc(sizeof(*queue) * capacity);
     if(queue)
     {

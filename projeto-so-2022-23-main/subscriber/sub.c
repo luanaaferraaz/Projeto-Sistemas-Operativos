@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdbool.h>
-#include "utils/aux.h"
+#include "utils/_aux.h"
 #include "fs/config.h"
 #include "utils/requests.h"
 
@@ -69,9 +69,6 @@ int main(int argc, char **argv) {
         wait_for_messages();
     }        
         
-    /*(void)argc;
-    (void)argv;
-    fprintf(stderr, "usage: sub <register_pipe_name> <box_name>\n");
-    WARN("unimplemented"); // TODO: implement*/
+
     return -1;
 }

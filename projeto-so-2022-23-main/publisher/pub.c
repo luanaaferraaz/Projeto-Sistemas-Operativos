@@ -8,7 +8,7 @@
 #include <errno.h>
 #include "fs/config.h"
 #include "utils/requests.h"
-#include "utils/aux.h"
+#include "utils/_aux.h"
 
 #define BUFFER_SIZE (MAX_ERROR_MESSAGE+5)
 
@@ -43,7 +43,6 @@ void wait_for_messages(){
     char *reading = NULL;
     while(true){
         puts("write a message:");
-    //char *line =NILL;
         size_t len = 0;
         ssize_t lineSize = 0;
         lineSize = getline(&reading, &len, stdin);
@@ -53,28 +52,6 @@ void wait_for_messages(){
             free(reading);
         }
     }
-    /*int pipe_on = open(pub_pipe_name, O_RDONLY);
-    if(pipe_on == -1){
-        fprintf(stderr,"Failed to open pipe(%s): %s\n", pub_pipe_name,
-                strerror(errno));
-        exit(EXIT_FAILURE);        
-    }
-    while(true){
-        char buffer[BUFFER_SIZE] = "";
-        ssize_t ret = read(pipe_on, buffer, BUFFER_SIZE - 1);
-        if (ret == 0) {
-            continue;
-        }else if(ret==-1){
-            fprintf(stderr,"Failed to read from pipe(%s): %s\n", pub_pipe_name,
-                strerror(errno));
-            exit(EXIT_FAILURE); 
-        }
-        //read something
-        char *code_received=strtok(buffer, "|");
-        if(atoi(code_received)==10){
-            char *message=strtok(NULL, "\0");
-        }
-    }*/
 }
 
 int main(int argc, char **argv) {
@@ -90,7 +67,7 @@ int main(int argc, char **argv) {
     else if( argc == 4 ) {
         char register_pipe[MAX_CLIENT_PIPE_NAME];
         strcpy(register_pipe, argv[1]);
-        strcpy(pub_pipe_name, argv[2]);
+        strcpy(pub_pipe_name, argv[2]); //client_pipe_name
         strcpy(box_name, argv[3]);
         send_request(PUBLISHER, register_pipe, pub_pipe_name, box_name);
         if(check_connected(pub_pipe_name)==-1){
