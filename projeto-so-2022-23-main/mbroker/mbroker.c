@@ -33,16 +33,7 @@ struct box_info{
 
 struct box_info boxes[MAX_BOXES];
 
-void createThreads(int max_sessions){
-    pthread_t tid[max_sessions];
 
-    for(int i=0; i<max_sessions; i++){
-        assert(pthread_create(&tid[i], NULL, non_active_wait, &i)==0);
-    }
-    for(int i=0; i<max_sessions; i++){
-        assert(pthread_join(tid[i], NULL)==0);
-    }
-}
 
 void work_with_sub(){
     char *client_name = strtok(NULL, "|");
@@ -298,18 +289,15 @@ void work_with_manager_removing(char *client_name, char *box_name){
                 
 }
 
-void work(int max_sessions){
+void *work(){
     int rx = open(server_pipe_name, O_RDONLY);
     if(rx==-1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", server_pipe_name,
                 strerror(errno));
         exit(EXIT_FAILURE);
     }
-    int count = 0;
     while(true){
-        if(count>=max_sessions){
-            //fila--------------------------------
-        }
+        
         char buffer[BUFFER_SIZE] = "";
         ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
         if (ret == 0) {
@@ -350,6 +338,17 @@ void work(int max_sessions){
     }
 }
 
+void createThreads(int max_sessions){
+    pthread_t tid[max_sessions];
+
+    for(int i=0; i<max_sessions; i++){
+        assert(pthread_create(&tid[i], NULL, &work, &i)==0);
+    }
+    for(int i=0; i<max_sessions; i++){
+        assert(pthread_join(tid[i], NULL)==0);
+    }
+}
+
 int main(int argc, char **argv) {
     if( argc > 3 ) {
         fprintf(stderr,"Too many arguments supplied.\n");
@@ -382,9 +381,10 @@ int main(int argc, char **argv) {
         char max_sessions_str[50]; 
         strcpy(max_sessions_str, argv[2]);
         int max_sessions = atoi(max_sessions_str);
-        createThreads(max_sessions);
         tfs_init(NULL);
-        work(max_sessions);
+        createThreads(max_sessions);
+        //
+        //work(max_sessions);
       
     }
 
