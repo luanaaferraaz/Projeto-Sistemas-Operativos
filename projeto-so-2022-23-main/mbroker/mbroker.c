@@ -39,6 +39,9 @@ void createThreads(int max_sessions){
     for(int i=0; i<max_sessions; i++){
         assert(pthread_create(&tid[i], NULL, non_active_wait, &i)==0);
     }
+    for(int i=0; i<max_sessions; i++){
+        assert(pthread_join(tid[i], NULL)==0);
+    }
 }
 
 void work_with_sub(){
@@ -94,6 +97,7 @@ void work_with_manager_listing(){
     char aux_box_name[MAX_BOX_NAME];
     int aux_pub_counter;
     int aux_sub_counter;
+    bool found = false;
     for(int i = 0; i < MAX_BOXES; i++){ //ordenar as boxes por ordem alfabética
         for(int j = i + 1; j < MAX_BOXES; j++){
             if(strcmp(boxes[i].box_name ,boxes[j].box_name)>0){
@@ -114,6 +118,7 @@ void work_with_manager_listing(){
     
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, "") != 0) {
+            found=true;
             long int n_publishers = 0, n_subscribers = 0;
             n_publishers = boxes[i].pub_counter;
             n_subscribers = boxes[i].sub_counter;
@@ -172,7 +177,37 @@ void work_with_manager_listing(){
             //mensagem ler da pipe e escrever no ficheiro no tfs
             
         }
-        
+    }
+    if(!found){
+        int man_pipe = open(client_name, O_WRONLY); 
+        if(man_pipe==-1){
+            fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        char message[1024];
+        strcpy(message, "8");
+        strcat(message, "|");
+        strcat(message, "1");
+        strcat(message, "|");
+        char box_name[MAX_BOX_NAME];
+        memset(box_name, '\0', MAX_BOX_NAME);
+        strcat(message, box_name);
+
+        size_t len = strlen(message);
+        size_t written = 0;
+        while (written < len) {
+
+            ssize_t ret = write(man_pipe, message + written, len - written);
+            if (ret < 0) {
+                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+            written += (size_t)ret;
+        }
+        if(close(man_pipe)==-1){
+            fprintf(stderr, "Failed to close(%d): %s\n", man_pipe, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
     }
     
 }
@@ -347,7 +382,7 @@ int main(int argc, char **argv) {
         char max_sessions_str[50]; 
         strcpy(max_sessions_str, argv[2]);
         int max_sessions = atoi(max_sessions_str);
-        //createThreads(max_sessions);
+        createThreads(max_sessions);
         tfs_init(NULL);
         work(max_sessions);
       

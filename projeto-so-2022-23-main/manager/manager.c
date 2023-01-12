@@ -80,8 +80,7 @@ void wait_for_list(int code) {
         char *box_name=strtok(NULL, "|");
         char empty[32];
         memset(empty, '\0', MAX_BOX_NAME);
-        
-        if(atoi(code_received)==code && last == 1 && strcmp(box_name, empty)==0){ //ultima caixa da listagem
+        if(atoi(code_received)==code && last == 1 && box_name == NULL){ //ultima caixa da listagem
             fprintf(stdout, "NO BOXES FOUND\n");
         } else if(atoi(code_received)==code){
             char *box_size=strtok(NULL, "|");
