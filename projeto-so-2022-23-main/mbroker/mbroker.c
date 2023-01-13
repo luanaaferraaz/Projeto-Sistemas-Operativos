@@ -23,7 +23,8 @@ char *creating_manager="3", *removing_manager="5", *listing_manager="7",
 
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
 
-void *non_active_wait(){return NULL;}
+pthread_cond_t box_signals[MAX_BOXES];
+pthread_mutex_t box_locks[MAX_BOXES];
 
 struct box_info{ 
     char box_name[MAX_BOX_NAME];
@@ -34,13 +35,12 @@ struct box_info{
 
 struct box_info boxes[MAX_BOXES];
 
-
-void write_message(char *message, char *box_name){ // write message in box (write on a tfs file)
+int write_message(char *message, char *box_name){ // write message in box (write on a tfs file)
     int handler = 0;
     if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
         fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
                             strerror(errno));
-        exit(EXIT_FAILURE);
+        return -1;
     }
     strcat(message, "\0");
 
@@ -48,23 +48,26 @@ void write_message(char *message, char *box_name){ // write message in box (writ
     if((written = tfs_write(handler, message, strlen(message)))==-1){
         fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
                             strerror(errno));
-        exit(EXIT_FAILURE);
+        return -1;
     } 
     if(tfs_close(handler)==-1){
         fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
             strerror(errno));
-        exit(EXIT_FAILURE);
+        return -1;
     }
+    return 0;
 }
 
 void work_with_sub(){
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
     bool connected = false;
+    int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
             boxes[i].sub_counter++;
             connected = true;
+            box_index=i;
             break;
         }
     }
@@ -79,16 +82,73 @@ void work_with_sub(){
     }
     
     send_connected_msg(client_name, connected);
+    //esperar por um sinal i guess
+    int handler = 0;
+    if((handler = tfs_open(box_name, 0))==-1){
+        fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
+                            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    char buffer[MAX_ERROR_MESSAGE]="";
+    ssize_t read = 0;
+    while(true){
+        if(pthread_mutex_lock(&box_locks[box_index])!=0){
+            fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+        }
+        printf("buffer: %s\n", buffer);
+        while((read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1)) <= 0){
+            puts("waiting");
+            printf("read --> %ld\n", read);
+            pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
+            puts("got signal");
+        }
+        printf("read out of while: %lu\n", read);
+        //read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1);
+        
+        char message[MAX_ERROR_MESSAGE + 3];
+        strcpy(message, "10");
+        strcat(message, "|");
+        strcat(message, buffer);
+        int pipe_on = open(client_name, O_WRONLY);
+        if(pipe_on == -1){
+            fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
+                    strerror(errno));
+            exit(EXIT_FAILURE);        
+        }
+        size_t len = strlen(message);
+        size_t written = 0;
+        while (written < len) {
+            ssize_t ret = write(pipe_on, message + written, len - written);
+            if (ret < 0) {
+                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+            written += (size_t)ret;
+        }
+        if(close(pipe_on)==-1){
+            fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
+                    strerror(errno));
+            exit(EXIT_FAILURE);  
+        }
+        if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+            fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+        }
+        puts(buffer);
+        memset(buffer, '\0', strlen(buffer));
+
+    }
 }
 
 void work_with_pub(){
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
     bool connected = false;
+    int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0 && boxes[i].pub_counter == 0) {
             boxes[i].pub_counter++;
             connected = true;
+            box_index = i;
             break;
         }
     }
@@ -121,11 +181,26 @@ void work_with_pub(){
             exit(EXIT_FAILURE); 
         }
         //read something
-        puts(buffer);
         char *code_received=strtok(buffer, "|");
         if(atoi(code_received)==9){
             char *message=strtok(NULL, "\0");
-            write_message(message, box_name);
+            if(pthread_mutex_lock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+                //largar thread
+            }
+            if(write_message(message, box_name)==-1){
+                if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                    fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+                }
+                //largar a thread
+            }else{
+                if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                    fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+                }
+                //largar a thread
+                pthread_cond_broadcast(&box_signals[box_index]);
+            }
+
         }
     }
 }
@@ -304,6 +379,8 @@ void work_with_manager_creating(char *client_name, char *box_name){
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
                 strcpy(boxes[i].manager_name, client_name);
+                pthread_mutex_init(&box_locks[i], NULL);
+                pthread_cond_init(&box_signals[i], NULL);
                 break;
             }
         }
@@ -344,6 +421,8 @@ void work_with_manager_removing(char *client_name, char *box_name) {
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
                 strcpy(boxes[i].manager_name, "");
+                pthread_mutex_destroy(&box_locks[i]);
+                pthread_cond_destroy(&box_signals[i]);
                 return_code = 0;
             }
             break;
