@@ -23,14 +23,9 @@ int check_for_EOF() {
     return 0;
 }
 
-void send_message_to_mb(char *message, char *pipe_name){
+void send_message_to_mb(int pub_pipe, char *message){
     //talvez dar um sinal para a thread no mbroker ler
 
-  int pub_pipe = open(pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
-  if(pub_pipe==-1){
-    fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
-    exit(EXIT_FAILURE);
-  }
   size_t len = strlen(message);
   size_t written = 0;
   while (written < len) {
@@ -48,6 +43,8 @@ void send_message_to_mb(char *message, char *pipe_name){
 
 void wait_for_messages(){ // wait for input messages
     char *reading = NULL;
+    int pub_pipe = 0;
+    bool wrote_message = false;
     while(!check_for_EOF()){
         size_t len = 0;
         ssize_t lineSize = 0;
@@ -58,9 +55,20 @@ void wait_for_messages(){ // wait for input messages
             strcat(message, "9");
             strcat(message, "|");
             strcat(message, reading);
-            send_message_to_mb(message, pub_pipe_name);
+            pub_pipe = open(pub_pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
+            if(pub_pipe==-1){
+                fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+            wrote_message = true;
+            send_message_to_mb(pub_pipe, message);
             free(reading);
         }
+    }
+    if(wrote_message  && close(pub_pipe)==-1) { // EOF closing session
+        fprintf(stderr,"Failed to close pipe(%s): %s\n", pub_pipe_name,
+                strerror(errno));
+        exit(EXIT_FAILURE);  
     }
 }
 

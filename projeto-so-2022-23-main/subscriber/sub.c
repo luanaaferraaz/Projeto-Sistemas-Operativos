@@ -16,6 +16,7 @@
 char box_name[MAX_BOX_NAME];
 char sub_pipe_name[MAX_CLIENT_PIPE_NAME];
 int message_count = 0;
+int sub_open = 0;
 
 static void sig_handler(int sig) {
 
@@ -25,7 +26,12 @@ static void sig_handler(int sig) {
     // So we set the signal handler back to our function after each trap.
     //
     signal(SIGINT, SIG_DFL);
-    printf("%d\n", message_count);
+    if(close(sub_open)==-1) { //closing session
+        fprintf(stderr,"Failed to close pipe(%s): %s\n", sub_pipe_name,
+                strerror(errno));
+        exit(EXIT_FAILURE);  
+    }
+    printf("\n%d\n", message_count);
     raise(SIGINT);
     return; // Resume execution at point of interruption
   }
@@ -37,6 +43,7 @@ void wait_for_messages() { // wait for publisher messages
     puts("waiting for messages");
     while(true){
         int pipe_on = open(sub_pipe_name, O_RDONLY);
+        sub_open = pipe_on;
         if(pipe_on == -1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", sub_pipe_name,
                 strerror(errno));
