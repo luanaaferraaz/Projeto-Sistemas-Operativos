@@ -3,12 +3,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define SIZE 200
-
 
 int isFull(pc_queue_t *queue) {
     if ((queue->pcq_head == queue->pcq_tail + 1) || 
-    (queue->pcq_head == 1 && queue->pcq_tail == SIZE)) {
+    (queue->pcq_head == 1 && queue->pcq_tail == queue->pcq_capacity)) {
         return 1;
     }
     return 0;
@@ -76,7 +74,7 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     if (queue->pcq_head == 0) {
         queue->pcq_head = 1;
     }
-    queue->pcq_head = (queue->pcq_head) % SIZE;
+    queue->pcq_head = (queue->pcq_head) % queue->pcq_capacity;
     queue->pcq_buffer[queue->pcq_head] = elem;
     queue->pcq_current_size++;
     return 0;
@@ -98,7 +96,7 @@ void *pcq_dequeue(pc_queue_t *queue) {
         queue->pcq_tail = 0;
     }  
     else {
-        queue->pcq_tail = (queue->pcq_tail) % SIZE;
+        queue->pcq_tail = (queue->pcq_tail) % queue->pcq_capacity;
     }
     queue->pcq_current_size--;
     return 0;

@@ -15,6 +15,7 @@
 #include "utils/requests.h"
 #include "utils/_aux.h"
 #include "fs/operations.h"
+#include "producer-consumer.h"
 
 #define BUFFER_SIZE (MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+4)
 #define MAX_BOXES (1024)
@@ -536,7 +537,7 @@ int main(int argc, char **argv) {
         }
 
         if(mkfifo(server_pipe_name, 0640)!=0){
-          fprintf(stderr,"Failed to create fifo here.\n");
+          fprintf(stderr,"Failed to create fifo.\n");
           exit(EXIT_FAILURE);
         }
 
@@ -544,6 +545,13 @@ int main(int argc, char **argv) {
         strcpy(max_sessions_str, argv[2]);
         int max_sessions = atoi(max_sessions_str);
         tfs_init(NULL);
+
+        pc_queue_t *queue = malloc(sizeof(pc_queue_t) * (size_t)(max_sessions*2));
+        if(pcq_create(queue, (size_t)(max_sessions*2)) == -1) {
+            fprintf(stderr,"Failed to create queue.\n");
+            exit(EXIT_FAILURE);
+        }
+        work(queue);
         createThreads(max_sessions);
       
     }
