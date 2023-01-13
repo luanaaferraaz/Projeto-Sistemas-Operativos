@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define SIZE 32
+#define SIZE 200
 
 
 int isFull(pc_queue_t *queue) {
