@@ -24,6 +24,7 @@ char *creating_manager="3", *removing_manager="5", *listing_manager="7",
 
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
 
+pthread_t mbroker_thread;
 pthread_cond_t box_signals[MAX_BOXES];
 pthread_mutex_t box_locks[MAX_BOXES];
 
@@ -551,6 +552,7 @@ int main(int argc, char **argv) {
             fprintf(stderr,"Failed to create queue.\n");
             exit(EXIT_FAILURE);
         }
+        if((pthread_create(&mbroker_thread,NULL,&work,NULL))==-1){ exit(EXIT_FAILURE);}
         work(queue);
         createThreads(max_sessions);
       
