@@ -19,9 +19,13 @@
 
 #define BUFFER_SIZE (MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+4)
 #define MAX_BOXES (1024)
+
 char *creating_manager="3", *removing_manager="5", *listing_manager="7", 
 *pub = "1", *sub = "2", *create_box_err="4", *remove_box_err="6"; 
 
+pc_queue_t *queue;
+
+int max_sessions=0;
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
 
 pthread_t mbroker_thread;
@@ -135,7 +139,6 @@ void work_with_sub(){
         if(pthread_mutex_unlock(&box_locks[box_index])!=0){
             fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
         }
-        puts(buffer);
         memset(buffer, '\0', strlen(buffer));
 
     }
@@ -453,7 +456,51 @@ void work_with_manager_removing(char *client_name, char *box_name) {
                 
 }
 
-void *work() { // read buffer and with is code choose wich action to do
+void *get_request(){
+    while(true){
+        
+        char buffer[MAX_CLIENT_PIPE_NAME*2+MAX_BOX_NAME+20];
+        puts("Vou buscar à fila");
+        pcq_dequeue(queue);
+        puts("hre");
+        puts(buffer);
+        char *code=strtok(buffer, "|");
+            
+        if(strcmp(code, pub)==0){ work_with_pub();}
+
+        
+        if(strcmp(code, sub)==0){ work_with_sub();}
+
+        else if(strcmp(code, creating_manager) == 0 || 
+            strcmp(code, removing_manager) == 0) { //create or remove box   
+            char *client_name = strtok(NULL, "|");
+            char *box_name = strtok(NULL, "|");
+            
+            if(strcmp(code, creating_manager) == 0) { work_with_manager_creating(client_name, box_name);}
+            //if it is not creating, it is removing 
+            else { work_with_manager_removing(client_name, box_name); }
+        }
+        else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); }
+    }    
+    return NULL;
+}
+
+void createThreads() { // create all (max_sessions) threads at the beginning of the program
+    pthread_t tid[max_sessions];
+    puts("1");
+
+    for(int i=0; i<max_sessions; i++){
+        assert(pthread_create(&tid[i], NULL, &get_request, &i)==0);
+    }
+}
+
+void work() { // read buffer and with is code choose wich action to do
+    queue = malloc(sizeof(pc_queue_t) * (size_t)(max_sessions*2));
+    if(pcq_create(queue, (size_t)(max_sessions*2)) == -1) {
+        fprintf(stderr,"Failed to create queue.\n");
+        exit(EXIT_FAILURE);
+    }
+    createThreads();
     int rx = open(server_pipe_name, O_RDONLY);
     if(rx==-1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", server_pipe_name,
@@ -471,45 +518,15 @@ void *work() { // read buffer and with is code choose wich action to do
                 strerror(errno));
             exit(EXIT_FAILURE);
         }
-        if(close(rx)==-1){
-            fprintf(stderr, "Failed to close(%s): %s\n", server_pipe_name, strerror(errno));
-        }
-        char *code=strtok(buffer, "|");
         
-        if(strcmp(code, pub)==0){ work_with_pub();}
-
+        pcq_enqueue(queue, buffer);
+        //////////////////////////////////////////////////////////////////////////
         
-        if(strcmp(code, sub)==0){ work_with_sub();}
-
-        else if(strcmp(code, creating_manager) == 0 || 
-            strcmp(code, removing_manager) == 0) { //create or remove box   
-            char *client_name = strtok(NULL, "|");
-            char *box_name = strtok(NULL, "|");
-            
-            if(strcmp(code, creating_manager) == 0) { work_with_manager_creating(client_name, box_name);}
-            //if it is not creating, it is removing 
-            else { work_with_manager_removing(client_name, box_name); }
-        }
-        else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); }
-
-        if((rx=open(server_pipe_name, O_RDONLY))==-1){
-            fprintf(stderr,"Failed to open pipe(%s): %s\n", server_pipe_name,
-            strerror(errno));
-            exit(EXIT_FAILURE);
-        }
         
         buffer[ret] = 0;
     }
-}
-
-void createThreads(int max_sessions) { // create all (max_sessions) threads at the beginning of the program
-    pthread_t tid[max_sessions];
-
-    for(int i=0; i<max_sessions; i++){
-        assert(pthread_create(&tid[i], NULL, &work, &i)==0);
-    }
-    for(int i=0; i<max_sessions; i++){
-        assert(pthread_join(tid[i], NULL)==0);
+    if(close(rx)==-1){
+        fprintf(stderr, "Failed to close(%s): %s\n", server_pipe_name, strerror(errno));
     }
 }
 
@@ -544,18 +561,11 @@ int main(int argc, char **argv) {
 
         char max_sessions_str[50]; 
         strcpy(max_sessions_str, argv[2]);
-        int max_sessions = atoi(max_sessions_str);
-        tfs_init(NULL);
+        max_sessions = atoi(max_sessions_str);
 
-        pc_queue_t *queue = malloc(sizeof(pc_queue_t) * (size_t)(max_sessions*2));
-        if(pcq_create(queue, (size_t)(max_sessions*2)) == -1) {
-            fprintf(stderr,"Failed to create queue.\n");
-            exit(EXIT_FAILURE);
-        }
-        if((pthread_create(&mbroker_thread,NULL,&work,NULL))==-1){ exit(EXIT_FAILURE);}
-        work(queue);
-        createThreads(max_sessions);
-      
+        tfs_init(NULL);
+        work();
+
     }
 
       return 0;

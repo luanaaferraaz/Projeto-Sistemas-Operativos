@@ -4,19 +4,12 @@
 #include <stdlib.h>
 
 
-int isFull(pc_queue_t *queue) {
-    if ((queue->pcq_head == queue->pcq_tail + 1) || 
-    (queue->pcq_head == 1 && queue->pcq_tail == queue->pcq_capacity)) {
-        return 1;
-    }
-    return 0;
+inline int isFull(pc_queue_t *queue) {
+    return queue->pcq_head == queue->pcq_tail && queue->pcq_current_size == queue->pcq_capacity;
 }
 
-int isEmpty(pc_queue_t *queue) {
-    if (queue->pcq_head == 0) {
-        return 1;
-    }
-    return 0;
+inline int isEmpty(pc_queue_t *queue) {
+    return queue->pcq_head == queue->pcq_tail && queue->pcq_current_size == 0;
 }
 
 // pcq_create: create a queue, with a given (fixed) capacity
@@ -65,18 +58,33 @@ int pcq_destroy(pc_queue_t *queue) {
 // If the queue is full, sleep until the queue has space
 int pcq_enqueue(pc_queue_t *queue, void *elem) {
    
-    while(true) {
-        if(isFull(queue) == 0) {
-            break;
-        }
+    pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
+    while(isFull(queue)) {
+        pthread_cond_wait(&queue->pcq_popper_condvar, &queue->pcq_popper_condvar_lock);
     }
-    
-    if (queue->pcq_head == 0) {
-        queue->pcq_head = 1;
-    }
-    queue->pcq_head = (queue->pcq_head) % queue->pcq_capacity;
+    pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
+    pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
+    pthread_cond_signal(&queue->pcq_pusher_condvar);
+    pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
+
+    printf("before_head:%ld\n", queue->pcq_head);
+    printf("before_tail:%ld\n", queue->pcq_tail);
+
+    pthread_mutex_lock(&queue->pcq_head_lock);
+
     queue->pcq_buffer[queue->pcq_head] = elem;
+
+    pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size++;
+    pthread_mutex_unlock(&queue->pcq_current_size_lock);
+
+    puts("Adicionei à fila:");
+
+    puts(queue->pcq_buffer[queue->pcq_head]);
+
+    queue->pcq_head = (queue->pcq_head + 1) % queue->pcq_capacity;
+    pthread_mutex_unlock(&queue->pcq_head_lock);
+
     return 0;
 }
 
@@ -84,21 +92,35 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 //
 // If the queue is empty, sleep until the queue has an element
 void *pcq_dequeue(pc_queue_t *queue) {
-
-    while(true) {
-        if(isEmpty(queue) == 1) {
-            break;
-        }
+    puts("Entrei");
+    pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
+    while(isEmpty(queue)) {
+        pthread_cond_wait(&queue->pcq_pusher_condvar, &queue->pcq_pusher_condvar_lock);
     }
+    pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
+    pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
+    pthread_cond_signal(&queue->pcq_popper_condvar);
+    pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
 
-    if (queue->pcq_head == queue->pcq_tail) { // has only one element
+    puts("Aa");
+    pthread_mutex_lock(&queue->pcq_head_lock);
+
+    void *elem = queue->pcq_buffer[queue->pcq_head];
+    pthread_mutex_unlock(&queue->pcq_head_lock);
+
+    /*if (queue->pcq_head == queue->pcq_tail) { // has only one element
         queue->pcq_head = 0;
         queue->pcq_tail = 0;
-    }  
-    else {
-        queue->pcq_tail = (queue->pcq_tail) % queue->pcq_capacity;
-    }
+    }  */
+    pthread_mutex_lock(&queue->pcq_tail_lock);
+
+    queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
+    pthread_mutex_unlock(&queue->pcq_tail_lock);
+    pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size--;
-    return 0;
+    pthread_mutex_unlock(&queue->pcq_current_size_lock);
+    puts(elem);
+    puts("a");
+    return elem;
     
 }

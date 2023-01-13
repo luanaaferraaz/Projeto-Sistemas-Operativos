@@ -15,7 +15,7 @@ void wait_for_response(int code){
     sleep(1);
     int res = open(manager_pipe_name, O_RDONLY);
     if(res==-1){
-        fprintf(stderr,"Failed to open pipe(%s): %s\n", manager_pipe_name,
+        fprintf(stderr,"Failed to open pipe->(%s): %s\n", manager_pipe_name,
                 strerror(errno));
         exit(EXIT_FAILURE);
     }
