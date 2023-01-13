@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "_aux.h": "c",
-        "config.h": "c"
+        "config.h": "c",
+        "string.h": "c"
     }
 }

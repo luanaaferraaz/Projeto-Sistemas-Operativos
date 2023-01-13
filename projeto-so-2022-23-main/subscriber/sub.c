@@ -9,22 +9,39 @@
 #include "utils/_aux.h"
 #include "fs/config.h"
 #include "utils/requests.h"
+#include <signal.h>
 
 #define BUFFER_SIZE (MAX_ERROR_MESSAGE+5)
 
 char box_name[MAX_BOX_NAME];
 char sub_pipe_name[MAX_CLIENT_PIPE_NAME];
+int message_count = 0;
+
+static void sig_handler(int sig) {
+
+  if (sig == SIGINT) {
+    // In some systems, after the handler call the signal gets reverted
+    // to SIG_DFL (the default action associated with the signal).
+    // So we set the signal handler back to our function after each trap.
+    //
+    signal(SIGINT, SIG_DFL);
+    printf("%d\n", message_count);
+    raise(SIGINT);
+    return; // Resume execution at point of interruption
+  }
+
+}
 
 void wait_for_messages() { // wait for publisher messages
-    //talvez esperar por um signal
-    int pipe_on = open(sub_pipe_name, O_RDONLY);
-    if(pipe_on == -1){
+    
+    puts("waiting for messages");
+    while(true){
+        int pipe_on = open(sub_pipe_name, O_RDONLY);
+        if(pipe_on == -1){
         fprintf(stderr,"Failed to open pipe(%s): %s\n", sub_pipe_name,
                 strerror(errno));
         exit(EXIT_FAILURE);        
-    }
-    puts("waiting for messages");
-    while(true){
+        }
         char buffer[BUFFER_SIZE] = "";
         ssize_t ret = read(pipe_on, buffer, BUFFER_SIZE - 1);
         if (ret == 0) {
@@ -39,6 +56,7 @@ void wait_for_messages() { // wait for publisher messages
         if(atoi(code_received)==RECEIVED_MSG){
             char *message=strtok(NULL, "\0");
             while(message!=NULL){
+                message_count++;
                 fprintf(stdout, "%s\n", message);
                 message=strtok(NULL, "\0");
             }
@@ -64,6 +82,9 @@ int main(int argc, char **argv) {
         send_request(SUBSCRIBER, register_pipe, sub_pipe_name, box_name);
         if(check_connected(sub_pipe_name)==-1){ //check if sub connected to box specified in input
             printf("Couldn't connect to: %s\n", box_name);
+            exit(EXIT_FAILURE);
+        }
+        if (signal(SIGINT, sig_handler) == SIG_ERR) {
             exit(EXIT_FAILURE);
         }
         wait_for_messages();

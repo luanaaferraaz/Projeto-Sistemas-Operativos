@@ -15,6 +15,14 @@
 char pub_pipe_name[MAX_CLIENT_PIPE_NAME];
 char box_name[MAX_BOX_NAME];
 
+int check_for_EOF() {
+    if (feof(stdin)) return 1;
+    int c = getc(stdin);
+    if (c == EOF) return 1;
+    ungetc(c, stdin);
+    return 0;
+}
+
 void send_message_to_mb(char *message, char *pipe_name){
     //talvez dar um sinal para a thread no mbroker ler
 
@@ -40,8 +48,7 @@ void send_message_to_mb(char *message, char *pipe_name){
 
 void wait_for_messages(){ // wait for input messages
     char *reading = NULL;
-    while(true){
-        puts("write a message:");
+    while(!check_for_EOF()){
         size_t len = 0;
         ssize_t lineSize = 0;
         lineSize = getline(&reading, &len, stdin);
