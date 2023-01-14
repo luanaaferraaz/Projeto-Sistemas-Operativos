@@ -101,14 +101,9 @@ void work_with_sub(){
         if(pthread_mutex_lock(&box_locks[box_index])!=0){
             fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
         }
-        printf("buffer: %s\n", buffer);
         while((read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1)) <= 0){
-            puts("waiting");
-            printf("read --> %ld\n", read);
             pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
-            puts("got signal");
         }
-        printf("read out of while: %lu\n", read);
         //read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1);
         
         char message[MAX_ERROR_MESSAGE + 3];
@@ -458,11 +453,10 @@ void work_with_manager_removing(char *client_name, char *box_name) {
 
 void *get_request(){
     while(true){
-        printf("current size get_requests: %ld\n", queue->pcq_current_size);
 
         char buffer[MAX_CLIENT_PIPE_NAME*2+MAX_BOX_NAME+20];
-        puts(pcq_dequeue(queue));
-        puts("!!!read from the queue!!!");
+        strcpy(buffer,pcq_dequeue(queue));
+        
         char *code=strtok(buffer, "|");
             
         if(strcmp(code, pub)==0){ work_with_pub();}
@@ -486,7 +480,6 @@ void *get_request(){
 
 void createThreads() { // create all (max_sessions) threads at the beginning of the program
     pthread_t tid[max_sessions];
-    puts("1");
 
     for(int i=0; i<max_sessions; i++){
         assert(pthread_create(&tid[i], NULL, &get_request, &i)==0);
@@ -519,7 +512,6 @@ void work() { // read buffer and with is code choose wich action to do
         }
         strcat(buffer, "\0");
         pcq_enqueue(queue, buffer);
-        printf("current size mbroker: %ld\n", queue->pcq_current_size);
         //////////////////////////////////////////////////////////////////////////
         
         

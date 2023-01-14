@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_REQUEST_SIZE (256+256+32+20) 
+//2*256 for the pipes names, server pipe and session pipe
+//32 for box name
+//20 for |, code, an create/remove when it is a manager
 
 inline int isFull(pc_queue_t *queue) {
     return queue->pcq_head == queue->pcq_tail && queue->pcq_current_size == queue->pcq_capacity;
@@ -78,12 +82,9 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     //puts(queue->pcq_buffer[queue->pcq_tail]);
     pthread_mutex_lock(&queue->pcq_head_lock);
     strcpy(queue->pcq_buffer[queue->pcq_head],elem);
-    puts(queue->pcq_buffer[queue->pcq_head]);
-
-
+    
     queue->pcq_head = (queue->pcq_head + 1) % queue->pcq_capacity;
-    printf("tail:\n");
-    puts(queue->pcq_buffer[queue->pcq_tail]);
+
 
     pthread_mutex_unlock(&queue->pcq_head_lock);
     pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
@@ -100,32 +101,21 @@ void *pcq_dequeue(pc_queue_t *queue) {
     pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
     while(isEmpty(queue)) {
         pthread_cond_wait(&queue->pcq_pusher_condvar, &queue->pcq_pusher_condvar_lock);
-        puts("got signal"); 
     }
     pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
     
-
     pthread_mutex_lock(&queue->pcq_tail_lock);
-    printf("tail i: %ld\n",queue->pcq_tail);
-    puts(queue->pcq_buffer[queue->pcq_tail]);
 
-    void *elem = "";
-    puts(elem);
-    strcpy(elem,queue->pcq_buffer[queue->pcq_tail]);
-    puts("q");
-
-    /*if (queue->pcq_head == queue->pcq_tail) { // has only one element
-        queue->pcq_head = 0;
-        queue->pcq_tail = 0;
-    }  */
+    void *elem;
+    elem = queue->pcq_buffer[queue->pcq_tail];
 
     queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
     pthread_mutex_unlock(&queue->pcq_tail_lock);
+    
     pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size--;
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
-    //puts(elem);
-    puts("a");
+
     pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
     pthread_cond_signal(&queue->pcq_popper_condvar);
     pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
