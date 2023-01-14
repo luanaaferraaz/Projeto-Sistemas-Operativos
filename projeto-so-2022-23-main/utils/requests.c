@@ -87,7 +87,7 @@ void send_error(int pipe, char *code, char *return_code, char *error_message) {
   strcat(buffer, error_message);
   size_t len = strlen(buffer);
   size_t written = 0;
-
+  printf("buffer in send_error: %s\n", buffer);
   while (written < len) {
 
       ssize_t ret = write(pipe, buffer + written, len - written);
@@ -168,6 +168,10 @@ void send_request(int code, char* register_pipe_name, char *client_pipe_name, ch
     else if(code == REMOVE_MANAGER) {
       send_msg_request(pub_pipe, "5", client_pipe_name, box_name); 
     }
+    if(close(pub_pipe)==-1){
+      fprintf(stderr, "Failed to close: %s\n", strerror(errno));
+      exit(EXIT_FAILURE);
+    }
 }
 
 void send_request_list(char* register_pipe_name, char *client_pipe_name){
@@ -185,11 +189,13 @@ void send_request_list(char* register_pipe_name, char *client_pipe_name){
 
 void send_response(char* code, char* client_name, int return_code, char* error_message) {
   memset(client_name + strlen(client_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_name)) -1);
+  puts("will open pipe in send_response");
   int message_pipe = open(client_name, O_WRONLY);
   if(message_pipe==-1){
     fprintf(stderr, "Failed to open: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
+  puts("opened pipe in send _response");
   memset(error_message + strlen(error_message), '\0', sizeof(char)*(MAX_ERROR_MESSAGE - strlen(error_message) -1));
   if(return_code == -1) {
     send_error(message_pipe, code, "-1", error_message);

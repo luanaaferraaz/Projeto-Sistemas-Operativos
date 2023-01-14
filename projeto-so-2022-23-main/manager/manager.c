@@ -22,7 +22,6 @@ void wait_for_response(int code){
     while(true){
         char buffer[BUFFER_SIZE] = "";
         ssize_t ret = read(res, buffer, BUFFER_SIZE - 1);
-        
         if (ret == 0) {
             continue;
         }else if(ret==-1){
@@ -30,9 +29,7 @@ void wait_for_response(int code){
                 strerror(errno));
             exit(EXIT_FAILURE); 
         }
-        if(close(res)==-1){
-            fprintf(stderr, "Failed to close(%s): %s\n", manager_pipe_name, strerror(errno));
-        }
+        
         char *code_received=strtok(buffer, "|");
         char *return_code=strtok(NULL, "|");
         //ensuring we got the answer for our request, ==0 to check if no error occured
@@ -49,6 +46,9 @@ void wait_for_response(int code){
             exit(EXIT_FAILURE);
         }
         tirar o break*/
+        if(close(res)==-1){
+            fprintf(stderr, "Failed to close(%s): %s\n", manager_pipe_name, strerror(errno));
+        }
         break;
     }
 }

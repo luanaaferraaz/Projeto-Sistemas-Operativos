@@ -9,12 +9,34 @@
 #include "fs/config.h"
 #include "utils/requests.h"
 #include "utils/_aux.h"
+#include <signal.h>
 
 #define BUFFER_SIZE (MAX_ERROR_MESSAGE+5)
 
 char pub_pipe_name[MAX_CLIENT_PIPE_NAME];
 char box_name[MAX_BOX_NAME];
 char *msg_from_pub = "9"; 
+int pub_pipe = 0;
+
+static void sig_handler(int sig) {
+
+  if (sig == SIGPIPE) {
+    // In some systems, after the handler call the signal gets reverted
+    // to SIG_DFL (the default action associated with the signal).
+    // So we set the signal handler back to our function after each trap.
+    //
+    puts("SIGPIPEE");
+    signal(SIGPIPE, SIG_DFL);
+    if(close(pub_pipe)==-1) { //closing session
+        fprintf(stderr,"Failed to close pipe(%s): %s\n", pub_pipe_name,
+                strerror(errno));
+        exit(EXIT_FAILURE);  
+    }
+    raise(SIGINT);
+    return; // Resume execution at point of interruption
+  }
+
+}
 
 // check if user entered EOF in stdin
 // gets the first character from the input and checks if it is EOF,
@@ -28,13 +50,15 @@ int check_for_EOF() {
     return 0;
 }
 
-void send_message_to_mb(int pub_pipe, char *message){
+void send_message_to_mb(char *message){
 
   size_t len = strlen(message);
   size_t written = 0;
+  printf("will write: %s\n", message);
   while (written < len) {
 
       ssize_t ret = write(pub_pipe, message + written, len - written);
+      puts("writing in pipe");
       if (ret < 0) {
           fprintf(stderr, "Failed to write: %s\n", strerror(errno));
           exit(EXIT_FAILURE);
@@ -46,7 +70,6 @@ void send_message_to_mb(int pub_pipe, char *message){
 
 void wait_for_messages(){ // wait for input messages
     char *reading = NULL;
-    int pub_pipe = 0;
     bool wrote_message = false;
     //while it doesn´t read EOF from the input, runs
     while(!check_for_EOF()){
@@ -71,7 +94,7 @@ void wait_for_messages(){ // wait for input messages
                 }
             }
             wrote_message = true;
-            send_message_to_mb(pub_pipe, message);
+            send_message_to_mb(message);
             free(reading);
         }
     }
@@ -104,6 +127,9 @@ int main(int argc, char **argv) {
         
         //check if sub connected to box specified in input
         if(check_connected(pub_pipe_name)==-1){ 
+            exit(EXIT_FAILURE);
+        }
+        if (signal(SIGPIPE, sig_handler) == SIG_ERR) {
             exit(EXIT_FAILURE);
         }
         wait_for_messages();
