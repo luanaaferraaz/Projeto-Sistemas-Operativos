@@ -42,7 +42,7 @@ struct box_info{
 
 struct box_info boxes[MAX_BOXES];
 
-int write_message(char *message, char *box_name){ // write message in box (write on a tfs file)
+int write_message_box(char *message, char *box_name){ // write message in box (write on a tfs file)
     int handler = 0;
     if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
         puts("ERRO");
@@ -82,9 +82,15 @@ void work_with_sub(){
     int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
-            boxes[i].sub_counter++;
-            connected = true;
             box_index=i;
+            if(pthread_mutex_lock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+            }
+            boxes[i].sub_counter++;
+            if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+            }
+            connected = true;
             break;
         }
     }
@@ -98,77 +104,84 @@ void work_with_sub(){
         exit(EXIT_FAILURE);
     }
     if (signal(SIGPIPE, sig_handler) == SIG_ERR) {
-        puts("OLAAA");
         exit(EXIT_FAILURE);
     }
     send_connected_msg(client_name, connected);
-    //esperar por um sinal i guess
-    int handler = 0;
-    if((handler = tfs_open(box_name, 0))==-1){
-        fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
-                            strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    char buffer[MAX_ERROR_MESSAGE]="";
-    ssize_t read = 0;
-    bool all_good = true;
-    int pipe_on = open(client_name, O_WRONLY);
-    if(pipe_on == -1){
-        fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
-                strerror(errno));
-        exit(EXIT_FAILURE);        
-    }
-    while(true){
+    if(connected){
+        int handler = 0;
+        if((handler = tfs_open(box_name, 0))==-1){
+            fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
+                                strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        char buffer[MAX_ERROR_MESSAGE]="";
+        ssize_t read = 0;
+        bool all_good = true;
+        int pipe_on = open(client_name, O_WRONLY);
+        if(pipe_on == -1){
+            fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
+                    strerror(errno));
+            connected = false;
+        }
+        //this only happens if sub could connect to the box
+        while(connected){
+            if(pthread_mutex_lock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+            }
+            while((read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1)) <= 0){
+                printf("read: %ld\n", read);
+                if(read < 0){
+                    puts("error");
+                    all_good = false;
+                }
+                pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
+                puts("got signal will try to read");
+            }
+            //read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1);
+            if(all_good){
+                char message[MAX_ERROR_MESSAGE + 3];
+                strcpy(message, send_message_from_box);
+                strcat(message, "|");
+                strcat(message, buffer);
+                
+                size_t len = strlen(message);
+                size_t written = 0;
+                while (written < len) {
+                    ssize_t ret = write(pipe_on, message + written, len - written);
+                    if (ret < 0 && errno == EPIPE) {
+                        fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+                        all_good = false;
+                        break;
+                    }
+                    written += (size_t)ret;
+                }
+                
+                if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                    fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+                }
+                memset(buffer, '\0', strlen(buffer));
+            }
+            if(!all_good){ 
+                if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                    fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+                }
+                break; 
+            } 
+        }
         if(pthread_mutex_lock(&box_locks[box_index])!=0){
             fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
         }
-        while((read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1)) <= 0){
-            printf("read: %ld\n", read);
-            if(read < 0){
-                puts("error");
-                all_good = false;
-            }
-            pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
-            puts("got signal will try to read");
+        boxes[box_index].sub_counter--;
+        if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+            fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
         }
-        //read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1);
-        if(all_good){
-            char message[MAX_ERROR_MESSAGE + 3];
-            strcpy(message, send_message_from_box);
-            strcat(message, "|");
-            strcat(message, buffer);
-            
-            size_t len = strlen(message);
-            size_t written = 0;
-            while (written < len) {
-                ssize_t ret = write(pipe_on, message + written, len - written);
-                if (ret < 0 && errno == EPIPE) {
-                    fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                    all_good = false;
-                    break;
-                }
-                written += (size_t)ret;
-            }
-            
-            if(pthread_mutex_unlock(&box_locks[box_index])!=0){
-                fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
-            }
-            memset(buffer, '\0', strlen(buffer));
+        if(close(pipe_on)==-1){
+            fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
+                    strerror(errno));
+            exit(EXIT_FAILURE);  
         }
-        if(!all_good){ 
-            puts("nao esta all good");
-            if(pthread_mutex_unlock(&box_locks[box_index])!=0){
-                fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
-            }
-            break; 
-        } 
     }
-
-    if(close(pipe_on)==-1){
-        fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
-                strerror(errno));
-        exit(EXIT_FAILURE);  
-    }
+    
 }
 
 void work_with_pub(){
@@ -178,9 +191,15 @@ void work_with_pub(){
     int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0 && boxes[i].pub_counter == 0) {
+            box_index=i;
+            if(pthread_mutex_lock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+            }
             boxes[i].pub_counter++;
+            if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+            }
             connected = true;
-            box_index = i;
             break;
         }
     }
@@ -194,43 +213,57 @@ void work_with_pub(){
         exit(EXIT_FAILURE);
     }
     send_connected_msg(client_name, connected);
-    //esperar por sinal p/ abrir a pipe e ler mensagens
-    
-    int rx = open(client_name, O_RDONLY);
-    if(rx==-1){
-        fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
-                strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    while(true){
-        char buffer[BUFFER_SIZE] = "";
-        //stays here until if reads something
-        ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
-        if (ret == 0) {
-            continue;
-        }else if(ret==-1){
-            fprintf(stderr,"Failed to read from pipe(%s): %s\n", client_name,
-                strerror(errno));
-            exit(EXIT_FAILURE); 
+    if(connected){
+        int rx = open(client_name, O_RDONLY);
+        if(rx==-1){
+            fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
+                    strerror(errno));
+            exit(EXIT_FAILURE);
         }
-        //read something
-        char *code_received=strtok(buffer, "|");
-        if(atoi(code_received)==9){
-            char *message=strtok(NULL, "\0");
-            
-            if(write_message(message, box_name)==-1){
-                //if an error occures let go pub
+        while(true){
+            char buffer[BUFFER_SIZE] = "";
+            //stays here until if reads something
+            ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
+            if (ret == 0) {
+                continue;
+            }else if(ret==-1){
+                fprintf(stderr,"Failed to read from pipe(%s): %s\n", client_name,
+                    strerror(errno));
+                exit(EXIT_FAILURE); 
+            }
+            //read something
+            char *code_received=strtok(buffer, "|");
+            if(atoi(code_received)==9){
+                char *message=strtok(NULL, "\0");
+                
+                if(write_message_box(message, box_name)==-1){
+                    //if an error occures let go pub
+                    if(close(rx)==-1){
+                        fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
+                    strerror(errno));
+                        //it´s fine, thread will let go pub
+                    }
+                    break;
+                }else{
+                    // signal for subs read from the box
+                    pthread_cond_broadcast(&box_signals[box_index]);
+                }
+            //pub ended let go pub
+            }else if(atoi(code_received)==PUB_ENDED){
                 if(close(rx)==-1){
                     fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
                 strerror(errno));
                     //it´s fine, thread will let go pub
-                }
+                }  
                 break;
-            }else{
-                // signal for subs read from the box
-                pthread_cond_broadcast(&box_signals[box_index]);
             }
-
+        }
+        if(pthread_mutex_lock(&box_locks[box_index])!=0){
+            fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
+        }
+        boxes[box_index].pub_counter--;
+        if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+            fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
         }
     }
 }

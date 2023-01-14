@@ -28,4 +28,6 @@
 
 #define SEND_MSG (8)
 
+#define PUB_ENDED (13)
+
 #endif // CONFIG_H

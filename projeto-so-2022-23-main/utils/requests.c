@@ -11,72 +11,21 @@
 #include "requests.h"
 
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
-void send_message(char *message, char *box_name, char *pipe_name){
-  int pub_pipe = open(pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
-  if(pub_pipe==-1){
-    fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  size_t len = strlen(message);
-  size_t written = 0;
-  puts(box_name);
-  while (written < len) {
+int write_message(int pipe, char *buffer){
+    size_t len = strlen(buffer);
+    size_t written = 0;
+    while (written < len) {
 
-      ssize_t ret = write(pub_pipe, message + written, len - written);
-      if (ret < 0) {
-          fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-          exit(EXIT_FAILURE);
-      }
-      written += (size_t)ret;
-  }
-  //talvez um sinal para o mbroker a tratar disto escrever a 
-  //mensagem ler da pipe e escrever no ficheiro no tfs
-}
-/*
-//precisava de thread para isto porque preciso que alguem fique à espera de ler algo da pipe do pub para depois ler a mensagem e avisar o sub que chegou uma mensagem
-int rx = open(client_name, O_RDONLY);
-if(rx==-1){
-    fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
-            strerror(errno));
-    exit(EXIT_FAILURE);
-}
-char buffer[BUFFER_SIZE] = "";
-ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
-if (ret == 0) {
-    continue;
-}else if(ret==-1){
-    fprintf(stderr,"Failed to read from pipe(%s): %s\n", sub_pipe_name,
-        strerror(errno));
-    exit(EXIT_FAILURE); 
-}
-//read something
-char *code_received=strtok(buffer, "|");
-if(atoi(code_received)==RECEIVED_MSG){
-    char *message=strtok(NULL, "\0");
-    while(message!=NULL){
-        fprintf(stdout, "%s\n", message);
-        message=strtok(NULL, "\0");
+        ssize_t ret = write(pipe, buffer + written, len - written);
+        if (ret < 0) {
+            fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+            return -1;
+        }
+        written += (size_t)ret;
     }
+    return 0;
 }
-void write_message(char *message, char *box_name){
-  int handler = 0;
-  if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
-    fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
-                        strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  strcat(message, "\0");
-  if(tfs_write(handler, message, strlen(message))==-1){
-    fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
-                        strerror(errno));
-    exit(EXIT_FAILURE);
-  } 
-  if(tfs_close(handler)==-1){
-    fprintf(stderr, "[ERR]: closing (%s) failed: %s\n", box_name,
-        strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-}*/
+
 
 void send_error(int pipe, char *code, char *return_code, char *error_message) {
   char buffer[MAX_ERROR_MESSAGE+20] = "";
@@ -85,9 +34,10 @@ void send_error(int pipe, char *code, char *return_code, char *error_message) {
   strcat(buffer, return_code);
   strcat(buffer, "|");
   strcat(buffer, error_message);
-  size_t len = strlen(buffer);
+
+  if(write_message(pipe, buffer)==-1) exit(EXIT_FAILURE);
+  /*size_t len = strlen(buffer);
   size_t written = 0;
-  printf("buffer in send_error: %s\n", buffer);
   while (written < len) {
 
       ssize_t ret = write(pipe, buffer + written, len - written);
@@ -96,7 +46,7 @@ void send_error(int pipe, char *code, char *return_code, char *error_message) {
           exit(EXIT_FAILURE);
       }
       written += (size_t)ret;
-  }
+  }*/
   
 }
 
