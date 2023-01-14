@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 inline int isFull(pc_queue_t *queue) {
@@ -63,27 +64,31 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
         pthread_cond_wait(&queue->pcq_popper_condvar, &queue->pcq_popper_condvar_lock);
     }
     pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
-    pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
-    pthread_cond_signal(&queue->pcq_pusher_condvar);
-    pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
+    
+    //pthread_mutex_lock(&queue->pcq_head_lock);
 
-    printf("before_head:%ld\n", queue->pcq_head);
-    printf("before_tail:%ld\n", queue->pcq_tail);
-
-    pthread_mutex_lock(&queue->pcq_head_lock);
-
-    queue->pcq_buffer[queue->pcq_head] = elem;
+    //queue->pcq_buffer[queue->pcq_head] = elem;
 
     pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size++;
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
 
-    puts("Adicionei à fila:");
 
+    //puts(queue->pcq_buffer[queue->pcq_head]);
+    //puts(queue->pcq_buffer[queue->pcq_tail]);
+    pthread_mutex_lock(&queue->pcq_head_lock);
+    strcpy(queue->pcq_buffer[queue->pcq_head],elem);
     puts(queue->pcq_buffer[queue->pcq_head]);
 
+
     queue->pcq_head = (queue->pcq_head + 1) % queue->pcq_capacity;
+    printf("tail:\n");
+    puts(queue->pcq_buffer[queue->pcq_tail]);
+
     pthread_mutex_unlock(&queue->pcq_head_lock);
+    pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
+    pthread_cond_signal(&queue->pcq_pusher_condvar);
+    pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
 
     return 0;
 }
@@ -92,35 +97,38 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 //
 // If the queue is empty, sleep until the queue has an element
 void *pcq_dequeue(pc_queue_t *queue) {
-    puts("Entrei");
     pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
     while(isEmpty(queue)) {
         pthread_cond_wait(&queue->pcq_pusher_condvar, &queue->pcq_pusher_condvar_lock);
+        puts("got signal"); 
     }
     pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
-    pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
-    pthread_cond_signal(&queue->pcq_popper_condvar);
-    pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
+    
 
-    puts("Aa");
-    pthread_mutex_lock(&queue->pcq_head_lock);
+    pthread_mutex_lock(&queue->pcq_tail_lock);
+    printf("tail i: %ld\n",queue->pcq_tail);
+    puts(queue->pcq_buffer[queue->pcq_tail]);
 
-    void *elem = queue->pcq_buffer[queue->pcq_head];
-    pthread_mutex_unlock(&queue->pcq_head_lock);
+    void *elem = "";
+    puts(elem);
+    strcpy(elem,queue->pcq_buffer[queue->pcq_tail]);
+    puts("q");
 
     /*if (queue->pcq_head == queue->pcq_tail) { // has only one element
         queue->pcq_head = 0;
         queue->pcq_tail = 0;
     }  */
-    pthread_mutex_lock(&queue->pcq_tail_lock);
 
     queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
     pthread_mutex_unlock(&queue->pcq_tail_lock);
     pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size--;
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
-    puts(elem);
+    //puts(elem);
     puts("a");
+    pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
+    pthread_cond_signal(&queue->pcq_popper_condvar);
+    pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
     return elem;
     
 }

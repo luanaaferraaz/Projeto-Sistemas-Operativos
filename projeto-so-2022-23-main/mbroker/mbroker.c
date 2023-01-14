@@ -458,12 +458,11 @@ void work_with_manager_removing(char *client_name, char *box_name) {
 
 void *get_request(){
     while(true){
-        
+        printf("current size get_requests: %ld\n", queue->pcq_current_size);
+
         char buffer[MAX_CLIENT_PIPE_NAME*2+MAX_BOX_NAME+20];
-        puts("Vou buscar à fila");
-        pcq_dequeue(queue);
-        puts("hre");
-        puts(buffer);
+        puts(pcq_dequeue(queue));
+        puts("!!!read from the queue!!!");
         char *code=strtok(buffer, "|");
             
         if(strcmp(code, pub)==0){ work_with_pub();}
@@ -518,8 +517,9 @@ void work() { // read buffer and with is code choose wich action to do
                 strerror(errno));
             exit(EXIT_FAILURE);
         }
-        
+        strcat(buffer, "\0");
         pcq_enqueue(queue, buffer);
+        printf("current size mbroker: %ld\n", queue->pcq_current_size);
         //////////////////////////////////////////////////////////////////////////
         
         
@@ -565,9 +565,6 @@ int main(int argc, char **argv) {
 
         tfs_init(NULL);
         work();
-
     }
-
       return 0;
-
 }
