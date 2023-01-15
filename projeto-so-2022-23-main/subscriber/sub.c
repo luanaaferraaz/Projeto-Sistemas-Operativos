@@ -13,7 +13,8 @@
 
 char box_name[MAX_BOX_NAME];
 char sub_pipe_name[MAX_CLIENT_PIPE_NAME];
-int message_count = 0;
+long int message_count = 0;
+char message_count_str[4] = "";
 int sub_pipe = -2;
 
 static void sig_handler(int sig) {
@@ -25,7 +26,8 @@ static void sig_handler(int sig) {
                 strerror(errno));
         exit(EXIT_FAILURE);  
     }
-    printf("\n%d\n", message_count);
+    strcat(message_count_str, "\n");
+    if(write(1, message_count_str, 4)==-1)
     raise(SIGINT);
     return; 
   }
@@ -48,19 +50,21 @@ void wait_for_messages() { // wait for publisher messages
         if (ret == 0) {
             continue;
         }else if(ret==-1){
-            fprintf(stderr,"Failed to read from pipe(%s): %s\n", sub_pipe_name,
-                strerror(errno));
             exit(EXIT_FAILURE); 
         }
         size_of_buffer = strlen(buffer);
         if(first){
             // need to count how many messages where in the buffer at the first time
             for(int i = 0; i < size_of_buffer; i++){
-                if(buffer[i]=='\n')message_count++;
+                if(buffer[i]=='\n'){
+                    message_count++;
+                    sprintf(message_count_str, "%zu", message_count);
+                }
             }
             first = false;
             // since the last one will be increased when printing, need to decrease 1 the counter
             message_count--;
+            sprintf(message_count_str, "%zu", message_count);
         }
         //read something
         char *code_received=strtok(buffer, "|");
@@ -68,6 +72,7 @@ void wait_for_messages() { // wait for publisher messages
             char *message=strtok(NULL, "\0");
             while(message!=NULL){ // read all input messages until the end
                 message_count++;
+                sprintf(message_count_str, "%zu", message_count);
                 fprintf(stdout, "%s", message);
                 message=strtok(NULL, "\0");
             }

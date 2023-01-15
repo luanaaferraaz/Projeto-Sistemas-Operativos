@@ -31,7 +31,6 @@ static void sig_handler(int sig) {
 
 }
 
-
 int check_for_EOF() {
     if (feof(stdin)) return 1;
     int c = getc(stdin); // get first charater
@@ -41,7 +40,6 @@ int check_for_EOF() {
 }
 
 void wait_for_messages(){ // wait for input messages
-
     char *reading = NULL;
     pub_pipe = open(pub_pipe_name, O_WRONLY); 
     if(pub_pipe==-1){

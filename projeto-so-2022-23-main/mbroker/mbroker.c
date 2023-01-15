@@ -41,6 +41,8 @@ struct box_info{
 
 struct box_info boxes[MAX_BOXES];
 
+int boxes_count = 0;
+
 int write_message_box(char *message, char *box_name){ // write message in the box (write on a tfs file)
     int handler = 0;
     if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
@@ -61,16 +63,6 @@ int write_message_box(char *message, char *box_name){ // write message in the bo
     return 0;
 }
 
-static void sig_handler(int sig) {
-
-  if (sig == SIGPIPE) {
-    //we just wanted to catch sigpipe so we know the thread must let go subscriber
-    signal(SIGPIPE, SIG_DFL);
-    
-    return; // Resume execution at point of interruption
-  }
-
-}
 
 void work_with_sub() { // try to create a subscriber
 
@@ -102,7 +94,7 @@ void work_with_sub() { // try to create a subscriber
         fprintf(stderr,"Failed to create fifo here.\n");
         exit(EXIT_FAILURE);
     }
-    if (signal(SIGPIPE, sig_handler) == SIG_ERR) {
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         exit(EXIT_FAILURE);
     }
 
@@ -143,6 +135,9 @@ void work_with_sub() { // try to create a subscriber
                 strcat(message, buffer);
                 
                 if(write_message(pipe_on, message)==-1 && errno == EPIPE){
+                    if(pthread_mutex_unlock(&box_locks[box_index])!=0){
+                        fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
+                    }                    
                     all_good = false;
                     break;
                 }
@@ -175,7 +170,7 @@ void work_with_sub() { // try to create a subscriber
     
 }
 
-void work_with_pub() { // try to create a publisher
+void work_with_pub() { // function for the thread to work for a publisher
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
     bool connected = false;
@@ -204,7 +199,7 @@ void work_with_pub() { // try to create a publisher
     if((mkfifo(client_name, 0640))!=0){
         fprintf(stderr,"Failed to create fifo here.\n");
         exit(EXIT_FAILURE);
-    }
+    } 
 
     send_connected_msg(client_name, connected); 
 
@@ -279,31 +274,29 @@ void work_with_manager_listing() {
         fprintf(stderr,"Failed to create fifo here.\n");
         exit(EXIT_FAILURE);
     }
-    char aux_box_name[MAX_BOX_NAME];
-    int aux_pub_counter;
-    int aux_sub_counter;
-    bool found = false;
-    for(int i = 0; i < MAX_BOXES; i++){ //ordenar as boxes por ordem alfabética
-        for(int j = i + 1; j < MAX_BOXES; j++){
-            if(strcmp(boxes[i].box_name ,boxes[j].box_name)>0){
-                strcpy(aux_box_name,boxes[i].box_name);
-                aux_pub_counter = boxes[i].pub_counter;
-                aux_sub_counter = boxes[i].sub_counter;
+    if(boxes_count > 0){
+        char aux_box_name[MAX_BOX_NAME];
+        int aux_pub_counter;
+        int aux_sub_counter;
+        for(int i = 0; i < MAX_BOXES; i++){ //ordenar as boxes por ordem alfabética
+            for(int j = i + 1; j < boxes_count; j++){
+                if(strcmp(boxes[i].box_name ,boxes[j].box_name)>0){
+                    strcpy(aux_box_name,boxes[i].box_name);
+                    aux_pub_counter = boxes[i].pub_counter;
+                    aux_sub_counter = boxes[i].sub_counter;
 
-                strcpy(boxes[i].box_name,boxes[j].box_name);
-                boxes[i].pub_counter = boxes[j].pub_counter;
-                boxes[i].sub_counter = boxes[j].sub_counter;
+                    strcpy(boxes[i].box_name,boxes[j].box_name);
+                    boxes[i].pub_counter = boxes[j].pub_counter;
+                    boxes[i].sub_counter = boxes[j].sub_counter;
 
-                strcpy(boxes[j].box_name,aux_box_name);
-                boxes[j].pub_counter = aux_pub_counter;
-                boxes[j].sub_counter = aux_sub_counter;
+                    strcpy(boxes[j].box_name,aux_box_name);
+                    boxes[j].pub_counter = aux_pub_counter;
+                    boxes[j].sub_counter = aux_sub_counter;
+                }
             }
         }
-    }
-    
-    for(int i = 0; i < MAX_BOXES; i++) {
-        if(strcmp(boxes[i].box_name, "") != 0 && strcmp(boxes[i].manager_name, client_name)==0) {
-            found=true;
+        
+        for(int i = 0; i < boxes_count; i++) {
             long int n_publishers = 0, n_subscribers = 0;
             n_publishers = boxes[i].pub_counter;
             n_subscribers = boxes[i].sub_counter;
@@ -311,16 +304,14 @@ void work_with_manager_listing() {
             int res = tfs_open(box_name, O_RDONLY);
             char reader[MAX_MESSAGE_SIZE] = "";
             ssize_t box_size = tfs_read(res, reader, MAX_MESSAGE_SIZE - 1);
-
             int man_pipe = open(client_name, O_WRONLY); 
             if(man_pipe==-1){
                 fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
                 exit(EXIT_FAILURE);
             }
-            
             char message[2+2+MAX_BOX_NAME+20+2+2+1] = "";
             char last[2] = "0";
-            if(i == MAX_BOXES -1 ) {strcpy(last,"1");}
+            if(i == boxes_count -1 ) {strcpy(last,"1");}
             strcat(message, "8");
             strcat(message, "|");
             strcat(message, last);
@@ -348,12 +339,12 @@ void work_with_manager_listing() {
                 exit(EXIT_FAILURE);
             }
             sleep(1);
-            //talvez um sinal para o mbroker a tratar disto escrever a 
-            //mensagem ler da pipe e escrever no ficheiro no tfs
+                //talvez um sinal para o mbroker a tratar disto escrever a 
+                //mensagem ler da pipe e escrever no ficheiro no tfs
+        }      
             
-        }
     }
-    if(!found){
+    else{
         int man_pipe = open(client_name, O_WRONLY); 
         if(man_pipe==-1){
             fprintf(stderr, "Failed to open--: %s\n", strerror(errno));
@@ -419,6 +410,7 @@ void work_with_manager_creating(char *client_name, char *box_name){
         
         for(int i = 0; i < (MAX_BOX_NAME); i++) {
             if(strcmp(boxes[i].box_name, "") == 0) { // put the new box in the first element of array that is available
+                boxes_count++;
                 strcpy(boxes[i].box_name,box_name);
                 boxes[i].pub_counter = 0;
                 boxes[i].sub_counter = 0;
@@ -441,7 +433,6 @@ void work_with_manager_creating(char *client_name, char *box_name){
             
     }
     send_response(create_box_err, client_name, return_code, error_message);
-    
 }
 
 // just check if remove the box give an error and send error message (that is "" if noting wrong happened) to send_response

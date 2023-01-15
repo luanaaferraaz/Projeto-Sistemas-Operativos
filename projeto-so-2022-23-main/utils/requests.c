@@ -19,7 +19,6 @@ int write_message(int pipe, char *buffer){
 
         ssize_t ret = write(pipe, buffer + written, len - written);
         if (ret < 0) {
-            fprintf(stderr, "Failed to write: %s\n", strerror(errno));
             return -1;
         }
         written += (size_t)ret;
