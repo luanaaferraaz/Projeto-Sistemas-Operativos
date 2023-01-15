@@ -11,8 +11,6 @@
 #include "utils/_aux.h"
 #include <signal.h>
 
-#define BUFFER_SIZE (MAX_ERROR_MESSAGE+5)
-
 char pub_pipe_name[MAX_CLIENT_PIPE_NAME];
 char box_name[MAX_BOX_NAME];
 char *msg_from_pub = "9"; 
@@ -50,20 +48,6 @@ int check_for_EOF() {
     return 0;
 }
 
-int send_message_to_mb(char *message){
-    size_t len = strlen(message);
-    size_t written = 0;
-    while (written < len) {
-        ssize_t ret = write(pub_pipe, message + written, len - written);
-        if (ret < 0) {
-            fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-            return -1;
-        }
-        written += (size_t)ret;
-    }
-    return 0;
-}
-
 void wait_for_messages(){ // wait for input messages
     char *reading = NULL;
     pub_pipe = open(pub_pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
@@ -79,14 +63,13 @@ void wait_for_messages(){ // wait for input messages
         //gets a line
         lineSize = getline(&reading, &len, stdin);
         if(lineSize > 0) {
-            char message[1024]="";
-           
+            char message[MAX_MESSAGE_SIZE]="";
            //concatenates the message in a buffer with sending message code - 9
             strcat(message, msg_from_pub);
             strcat(message, "|");
             strcat(message, reading);
             
-            if(send_message_to_mb(message)==-1){
+            if(write_message(pub_pipe, message)==-1){
                 break;
                 free(reading);
             }
@@ -94,7 +77,8 @@ void wait_for_messages(){ // wait for input messages
     }
     //needs to send a message to the pipe informing it is closing
     char message[3] = "13";
-    send_message_to_mb(message);
+    
+    write_message(pub_pipe, message);
     // EOF closing session, need to close the pipe 
     if(close(pub_pipe)==-1) { 
         fprintf(stderr,"Failed to close pipe(%s): %s\n", pub_pipe_name,

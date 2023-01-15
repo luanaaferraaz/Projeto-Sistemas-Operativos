@@ -17,7 +17,6 @@
 #include "fs/operations.h"
 #include "producer-consumer.h"
 
-#define BUFFER_SIZE (MAX_CLIENT_PIPE_NAME+MAX_BOX_NAME+4)
 #define MAX_BOXES (1024)
 
 char *creating_manager="3", *removing_manager="5", *listing_manager="7", 
@@ -49,7 +48,6 @@ int write_message_box(char *message, char *box_name){ // write message in box (w
         return -1; //box no longer exists 
     }
     strcat(message, "\0");
-
     ssize_t written = 0;
     if((written = tfs_write(handler, message, strlen(message)))==-1){
         fprintf(stderr, "[ERR]: Failed to write (%s) in the box (%s): %s\n", message, box_name,
@@ -114,7 +112,7 @@ void work_with_sub(){
                                 strerror(errno));
             exit(EXIT_FAILURE);
         }
-        char buffer[MAX_ERROR_MESSAGE]="";
+        char buffer[MAX_MESSAGE_SIZE]="";
         ssize_t read = 0;
         bool all_good = true;
         int pipe_on = open(client_name, O_WRONLY);
@@ -128,32 +126,21 @@ void work_with_sub(){
             if(pthread_mutex_lock(&box_locks[box_index])!=0){
                 fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
             }
-            while((read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1)) <= 0){
-                printf("read: %ld\n", read);
+            while((read=tfs_read(handler, buffer, MAX_MESSAGE_SIZE-1)) <= 0){
                 if(read < 0){
-                    puts("error");
                     all_good = false;
                 }
                 pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
-                puts("got signal will try to read");
             }
-            //read=tfs_read(handler, buffer, MAX_ERROR_MESSAGE-1);
             if(all_good){
-                char message[MAX_ERROR_MESSAGE + 3];
+                char message[MAX_MESSAGE_SIZE + 3];
                 strcpy(message, send_message_from_box);
                 strcat(message, "|");
                 strcat(message, buffer);
                 
-                size_t len = strlen(message);
-                size_t written = 0;
-                while (written < len) {
-                    ssize_t ret = write(pipe_on, message + written, len - written);
-                    if (ret < 0 && errno == EPIPE) {
-                        fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                        all_good = false;
-                        break;
-                    }
-                    written += (size_t)ret;
+                if(write_message(pipe_on, message)==-1 && errno == EPIPE){
+                    all_good = false;
+                    break;
                 }
                 
                 if(pthread_mutex_unlock(&box_locks[box_index])!=0){
@@ -221,9 +208,9 @@ void work_with_pub(){
             exit(EXIT_FAILURE);
         }
         while(true){
-            char buffer[BUFFER_SIZE] = "";
+            char buffer[MAX_MESSAGE_SIZE] = "";
             //stays here until if reads something
-            ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
+            ssize_t ret = read(rx, buffer, MAX_MESSAGE_SIZE - 1);
             if (ret == 0) {
                 continue;
             }else if(ret==-1){
@@ -309,8 +296,8 @@ void work_with_manager_listing(){
             n_subscribers = boxes[i].sub_counter;
             char *box_name = boxes[i].box_name;
             int res = tfs_open(box_name, O_RDONLY);
-            char reader[BUFFER_SIZE] = "";
-            ssize_t box_size = tfs_read(res, reader, BUFFER_SIZE - 1);
+            char reader[MAX_MESSAGE_SIZE] = "";
+            ssize_t box_size = tfs_read(res, reader, MAX_MESSAGE_SIZE - 1);
 
             int man_pipe = open(client_name, O_WRONLY); 
             if(man_pipe==-1){
@@ -342,17 +329,8 @@ void work_with_manager_listing(){
             sprintf(str_subscribers, "%zu", n_subscribers);
             strcat(message, str_subscribers);
             
-            size_t len = strlen(message);
-            size_t written = 0;
-            while (written < len) {
+            if(write_message(man_pipe, message)==-1) exit(EXIT_FAILURE);
 
-                ssize_t ret = write(man_pipe, message + written, len - written);
-                if (ret < 0) {
-                    fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-                written += (size_t)ret;
-            }
             if(close(man_pipe)==-1){
                 fprintf(stderr, "Failed to close(%d): %s\n", man_pipe, strerror(errno));
                 exit(EXIT_FAILURE);
@@ -378,17 +356,8 @@ void work_with_manager_listing(){
         memset(box_name, '\0', MAX_BOX_NAME);
         strcat(message, box_name);
 
-        size_t len = strlen(message);
-        size_t written = 0;
-        while (written < len) {
+        if(write_message(man_pipe, message)==-1) exit(EXIT_FAILURE);
 
-            ssize_t ret = write(man_pipe, message + written, len - written);
-            if (ret < 0) {
-                fprintf(stderr, "Failed to write: %s\n", strerror(errno));
-                exit(EXIT_FAILURE);
-            }
-            written += (size_t)ret;
-        }
         if(close(man_pipe)==-1){
             fprintf(stderr, "Failed to close(%d): %s\n", man_pipe, strerror(errno));
             exit(EXIT_FAILURE);
@@ -582,8 +551,8 @@ void work() { // read buffer and with is code choose wich action to do
     }
     while(true){
         
-        char buffer[BUFFER_SIZE] = "";
-        ssize_t ret = read(rx, buffer, BUFFER_SIZE - 1);
+        char buffer[MAX_MESSAGE_SIZE] = "";
+        ssize_t ret = read(rx, buffer, MAX_MESSAGE_SIZE - 1);
         if (ret == 0) {
             continue;
         }else if(ret == -1){

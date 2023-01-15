@@ -11,8 +11,6 @@
 #include "utils/requests.h"
 #include <signal.h>
 
-#define BUFFER_SIZE (MAX_ERROR_MESSAGE+5)
-
 char box_name[MAX_BOX_NAME];
 char sub_pipe_name[MAX_CLIENT_PIPE_NAME];
 int message_count = 0;
@@ -45,11 +43,11 @@ void wait_for_messages() { // wait for publisher messages
                 strerror(errno));
         exit(EXIT_FAILURE);        
     }
-    char buffer[BUFFER_SIZE] = "";
+    char buffer[MAX_MESSAGE_SIZE+5] = "";
+    size_t size_of_buffer = 0; //so we can keep the size of the buffer after reading it before we split it
     while(true){
         
-        
-        ssize_t ret = read(sub_pipe, buffer, BUFFER_SIZE - 1);
+        ssize_t ret = read(sub_pipe, buffer, MAX_MESSAGE_SIZE + 4);
         if (ret == 0) {
             continue;
         }else if(ret==-1){
@@ -57,17 +55,19 @@ void wait_for_messages() { // wait for publisher messages
                 strerror(errno));
             exit(EXIT_FAILURE); 
         }
+        size_of_buffer = strlen(buffer);
+
         //read something
         char *code_received=strtok(buffer, "|");
         if(atoi(code_received)==RECEIVED_MSG){
             char *message=strtok(NULL, "\0");
             while(message!=NULL){
                 message_count++;
-                fprintf(stdout, "%s\n", message);
+                fprintf(stdout, "%s", message);
                 message=strtok(NULL, "\0");
             }
         }
-        memset(buffer, '\0', strlen(buffer));
+        memset(buffer, '\0', size_of_buffer);
     }
 }
 

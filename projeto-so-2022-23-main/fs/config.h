@@ -20,6 +20,8 @@
 
 #define MAX_ERROR_MESSAGE (1024)
 
+#define MAX_MESSAGE_SIZE (1024)
+
 #define PUBLISHER (1)
 
 #define SUBSCRIBER (2)
