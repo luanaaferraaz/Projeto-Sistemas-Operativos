@@ -21,7 +21,7 @@
 
 char *creating_manager="3", *removing_manager="5", *listing_manager="7", 
 *pub = "1", *sub = "2", *create_box_err="4", *remove_box_err="6", 
-*send_message_from_box = "10", *error_with_box = "13"; 
+*send_message_from_box = "10"; 
 
 pc_queue_t *queue;
 
@@ -41,7 +41,7 @@ struct box_info{
 
 struct box_info boxes[MAX_BOXES];
 
-int write_message_box(char *message, char *box_name){ // write message in box (write on a tfs file)
+int write_message_box(char *message, char *box_name){ // write message in the box (write on a tfs file)
     int handler = 0;
     if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
         return -1; //box no longer exists 
@@ -72,13 +72,15 @@ static void sig_handler(int sig) {
 
 }
 
-void work_with_sub(){
+void work_with_sub() { // try to create a subscriber
+
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
     bool connected = false;
     int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
-        if(strcmp(boxes[i].box_name, box_name) == 0) {
+        if(strcmp(boxes[i].box_name, box_name) == 0) { // if it is a box with the same name of the box in the subscriber 
+                                                        // request  we can create a subscriber
             box_index=i;
             if(pthread_mutex_lock(&box_locks[box_index])!=0){
                 fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
@@ -103,8 +105,10 @@ void work_with_sub(){
     if (signal(SIGPIPE, sig_handler) == SIG_ERR) {
         exit(EXIT_FAILURE);
     }
+
     send_connected_msg(client_name, connected);
-    if(connected){
+
+    if(connected) { // if subscriber was created succesfuly we can continue
         int handler = 0;
         if((handler = tfs_open(box_name, 0))==-1){
             fprintf(stderr, "[ERR]: Failed to open box (%s): %s\n", box_name,
@@ -113,7 +117,7 @@ void work_with_sub(){
         }
         char buffer[MAX_MESSAGE_SIZE]="";
         ssize_t read = 0;
-        bool all_good = true;
+        bool all_good = true; // variable to check if sub reads something or not
         int pipe_on = open(client_name, O_WRONLY);
         if(pipe_on == -1){
             fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
@@ -131,7 +135,8 @@ void work_with_sub(){
                 }
                 pthread_cond_wait(&box_signals[box_index], &box_locks[box_index]);
             }
-            if(all_good){
+            if(all_good) { 
+
                 char message[MAX_MESSAGE_SIZE + 3];
                 strcpy(message, send_message_from_box);
                 strcat(message, "|");
@@ -147,7 +152,7 @@ void work_with_sub(){
                 }
                 memset(buffer, '\0', strlen(buffer));
             }
-            if(!all_good){ 
+            if(!all_good) { // all_good can change to false 
                 if(pthread_mutex_unlock(&box_locks[box_index])!=0){
                     fprintf(stderr, "Failed to unlock mutex: %s\n", strerror(errno));
                 }
@@ -170,13 +175,15 @@ void work_with_sub(){
     
 }
 
-void work_with_pub(){
+void work_with_pub() { // try to create a publisher
     char *client_name = strtok(NULL, "|");
     char *box_name = strtok(NULL, "|");
     bool connected = false;
     int box_index = -1;
     for(int i = 0; i < MAX_BOXES; i++) {
-        if(strcmp(boxes[i].box_name, box_name) == 0 && boxes[i].pub_counter == 0) {
+        if(strcmp(boxes[i].box_name, box_name) == 0 && boxes[i].pub_counter == 0) { // if it is a box with the same name of the box in the publisher 
+                                                                                    // request and if it is not anyone publisher in that box, 
+                                                                                    // we can create a publisher
             box_index=i;
             if(pthread_mutex_lock(&box_locks[box_index])!=0){
                 fprintf(stderr, "Failed to lock mutex: %s\n", strerror(errno));
@@ -198,15 +205,20 @@ void work_with_pub(){
         fprintf(stderr,"Failed to create fifo here.\n");
         exit(EXIT_FAILURE);
     }
-    send_connected_msg(client_name, connected);
-    if(connected){
+
+    send_connected_msg(client_name, connected); 
+
+    if(connected) { // if publisher was created succesfuly we can continue
+
         int rx = open(client_name, O_RDONLY);
         if(rx==-1){
             fprintf(stderr,"Failed to open pipe(%s): %s\n", client_name,
                     strerror(errno));
             exit(EXIT_FAILURE);
         }
-        while(true){
+
+        while(true) {
+
             char buffer[MAX_MESSAGE_SIZE] = "";
             //stays here until if reads something
             ssize_t ret = read(rx, buffer, MAX_MESSAGE_SIZE - 1);
@@ -218,11 +230,12 @@ void work_with_pub(){
                 exit(EXIT_FAILURE); 
             }
             //read something
+
             char *code_received=strtok(buffer, "|");
             if(atoi(code_received)==9){
                 char *message=strtok(NULL, "\0");
                 
-                if(write_message_box(message, box_name)==-1){
+                if(write_message_box(message, box_name)==-1) { // write the publisher input message in the box 
                     //if an error occures let go pub
                     if(close(rx)==-1){
                         fprintf(stderr,"Failed to close pipe(%s): %s\n", client_name,
@@ -234,6 +247,7 @@ void work_with_pub(){
                     // signal for subs read from the box
                     pthread_cond_broadcast(&box_signals[box_index]);
                 }
+
             //pub ended let go pub
             }else if(atoi(code_received)==PUB_ENDED){
                 if(close(rx)==-1){
@@ -254,7 +268,7 @@ void work_with_pub(){
     }
 }
 
-void work_with_manager_listing(){
+void work_with_manager_listing() {
     char *client_name = strtok(NULL, "|");
     if (unlink(client_name) != 0 && errno != ENOENT) {
         fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", client_name,
@@ -364,9 +378,9 @@ void work_with_manager_listing(){
     
 }
 
-// check if create the box give an error and send error message(that is "" if noting wrong happened) to send_response
+// check if creating the box gives an error and send error message(that is "" if noting wrong happened) to send_response
 void work_with_manager_creating(char *client_name, char *box_name){
-    int return_code = 0; // return code indicates if the box is created with success
+    int return_code = 0; // return code indicates if the box is created succesfuly
     char error_message[MAX_ERROR_MESSAGE] = "\0";
     for(int i = 0; i < MAX_BOXES; i++) {
         if(strcmp(boxes[i].box_name, box_name) == 0) {
@@ -498,29 +512,33 @@ void work_with_manager_removing(char *client_name, char *box_name) {
                 
 }
 
-void *get_request(){
+
+void *get_request() { // receive the request and check wich action mbroker had to do
+
     while(true){
 
         char buffer[MAX_CLIENT_PIPE_NAME*2+MAX_BOX_NAME+20];
-        strcpy(buffer,pcq_dequeue(queue));
+        strcpy(buffer,pcq_dequeue(queue)); // remove the request from pcq 
         
         char *code=strtok(buffer, "|");
             
-        if(strcmp(code, pub)==0){ work_with_pub();}
+        if(strcmp(code, pub)==0){ work_with_pub();} // we want to create a publisher
 
         
-        if(strcmp(code, sub)==0){ work_with_sub();}
+        if(strcmp(code, sub)==0){ work_with_sub();} // we want to create a subscriber
 
-        else if(strcmp(code, creating_manager) == 0 || 
-            strcmp(code, removing_manager) == 0) { //create or remove box   
+        else if(strcmp(code, creating_manager) == 0 || strcmp(code, removing_manager) == 0) {   
             char *client_name = strtok(NULL, "|");
             char *box_name = strtok(NULL, "|");
-            
-            if(strcmp(code, creating_manager) == 0) { work_with_manager_creating(client_name, box_name);}
-            //if it is not creating, it is removing 
-            else { work_with_manager_removing(client_name, box_name); }
+
+            if(strcmp(code, creating_manager) == 0) {  // we want to create a box
+                work_with_manager_creating(client_name, box_name);
+            } 
+            else { // we want to remove a box
+                work_with_manager_removing(client_name, box_name); 
+            } 
         }
-        else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); }
+        else if(strcmp(code, listing_manager) == 0) { work_with_manager_listing(); } // we want to list all the boxes
     }    
     return NULL;
 }
@@ -533,7 +551,7 @@ void createThreads() { // create all (max_sessions) threads at the beginning of 
     }
 }
 
-void work() { // read buffer and with is code choose wich action to do
+void work() { // funtion to initialize mbroker throwing the threads and creating the pcq. 
     queue = malloc(sizeof(pc_queue_t) * (size_t)(max_sessions*2));
     if(pcq_create(queue, (size_t)(max_sessions*2)) == -1) {
         fprintf(stderr,"Failed to create queue.\n");
@@ -558,10 +576,8 @@ void work() { // read buffer and with is code choose wich action to do
             exit(EXIT_FAILURE);
         }
         strcat(buffer, "\0");
-        pcq_enqueue(queue, buffer);
-        //////////////////////////////////////////////////////////////////////////
-        
-        
+        pcq_enqueue(queue, buffer); //  put the server request in the pcq to this be treated by a thread 
+
         buffer[ret] = 0;
     }
     if(close(rx)==-1){
@@ -605,5 +621,6 @@ int main(int argc, char **argv) {
         tfs_init(NULL);
         work();
     }
-      return 0;
+
+    return 0;
 }

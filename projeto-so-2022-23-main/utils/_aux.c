@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-int write_connected_message(int pipe, char *message){ 
+int write_connected_message(int pipe, char *message) {  // write 0 if it is connect and -1 otherwise
   size_t len = strlen(message);
   size_t written = 0;
 
@@ -68,12 +68,12 @@ int check_connected(char *pipe_name){ //check if pipe_name is connected to box
             if(close(pipe_on) == -1){
                 return -1;
             }
-            return -1;
+            return -1; // is not connected
         }else if(strcmp(buffer, "0")==0){
             if(close(pipe_on)==-1){
                 return -1;
             }
-            return 0;            
+            return 0; // is connected       
         }
         break;
     }

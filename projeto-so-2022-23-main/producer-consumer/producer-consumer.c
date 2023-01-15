@@ -23,16 +23,14 @@ inline int isEmpty(pc_queue_t *queue) {
 // (either on the stack or the heap)
 int pcq_create(pc_queue_t *queue, size_t capacity) {
 
-    //queue = malloc(sizeof(*queue) * capacity);
-
     queue->pcq_buffer = malloc(capacity * sizeof(void*));
     for (int i=0; i<capacity; ++i) {
         queue->pcq_buffer[i] = malloc(capacity * sizeof(void));
     }
 
     if(queue)
-    {
-        queue->pcq_capacity = capacity;
+    {                                    // initialize
+        queue->pcq_capacity = capacity; 
         queue->pcq_head = 0;
         queue->pcq_tail = 0;
         queue->pcq_current_size = 0;
@@ -53,8 +51,6 @@ int pcq_destroy(pc_queue_t *queue) {
 
     free(queue->pcq_buffer);
 
-    //free(queue);
-
     return 0;
 }
 
@@ -69,17 +65,11 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     }
     pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
     
-    //pthread_mutex_lock(&queue->pcq_head_lock);
-
-    //queue->pcq_buffer[queue->pcq_head] = elem;
-
     pthread_mutex_lock(&queue->pcq_current_size_lock);
     queue->pcq_current_size++;
     pthread_mutex_unlock(&queue->pcq_current_size_lock);
 
 
-    //puts(queue->pcq_buffer[queue->pcq_head]);
-    //puts(queue->pcq_buffer[queue->pcq_tail]);
     pthread_mutex_lock(&queue->pcq_head_lock);
     strcpy(queue->pcq_buffer[queue->pcq_head],elem);
     
@@ -98,6 +88,7 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 //
 // If the queue is empty, sleep until the queue has an element
 void *pcq_dequeue(pc_queue_t *queue) {
+
     pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
     while(isEmpty(queue)) {
         pthread_cond_wait(&queue->pcq_pusher_condvar, &queue->pcq_pusher_condvar_lock);
@@ -119,6 +110,7 @@ void *pcq_dequeue(pc_queue_t *queue) {
     pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
     pthread_cond_signal(&queue->pcq_popper_condvar);
     pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
+
     return elem;
     
 }

@@ -5,13 +5,13 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdbool.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #define BUFFER_SIZE (MAX_ERROR_MESSAGE+10)
 
 char manager_pipe_name[MAX_CLIENT_PIPE_NAME];
 
-void wait_for_response(int code){
+void wait_for_response(int code){ //check if the box was created or removed successfully
     sleep(1);
     int res = open(manager_pipe_name, O_RDONLY);
     if(res==-1){
@@ -39,13 +39,6 @@ void wait_for_response(int code){
             char *error_message = strtok(NULL, "|");
             fprintf(stdout, "ERROR %s\n", error_message);
         }
-        //se for p/ continuar no while:
-        /*if((res=open(manager_pipe_name, O_RDONLY))==-1){
-            fprintf(stderr,"Failed to open pipe(%s): %s\n", manager_pipe_name,
-                strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        tirar o break*/
         if(close(res)==-1){
             fprintf(stderr, "Failed to close(%s): %s\n", manager_pipe_name, strerror(errno));
         }
@@ -80,7 +73,7 @@ void wait_for_list(int code) {
         char *box_name=strtok(NULL, "|");
         char empty[32];
         memset(empty, '\0', MAX_BOX_NAME);
-        if(atoi(code_received)==code && last == 1 && box_name == NULL){ //ultima caixa da listagem
+        if(atoi(code_received)==code && last == 1 && box_name == NULL){ //last is 1 if the box is the last of the list
             fprintf(stdout, "NO BOXES FOUND\n");
         } else if(atoi(code_received)==code){
             char *box_size=strtok(NULL, "|");
@@ -102,7 +95,6 @@ int main(int argc, char **argv) {
     if( argc == 5 ) {
         if(strcmp(argv[3], "create")==0){
             char box_name[MAX_BOX_NAME];
-            //int mode = CREATE_MANAGER;
             char register_pipe[MAX_CLIENT_PIPE_NAME];
             strcpy(register_pipe, argv[1]);
             strcpy(manager_pipe_name, argv[2]);
@@ -112,7 +104,6 @@ int main(int argc, char **argv) {
 
         } else if(strcmp(argv[3], "remove")==0){
             char box_name[MAX_BOX_NAME];
-            //int mode = REMOVE_MANAGER;
             char register_pipe[MAX_CLIENT_PIPE_NAME];
             strcpy(register_pipe, argv[1]);
             strcpy(manager_pipe_name, argv[2]);
@@ -127,7 +118,6 @@ int main(int argc, char **argv) {
     }
     else if( argc == 4 ) {
         if(strcmp(argv[3], "list")==0){
-            //int mode = LIST_MANAGER;
             char register_pipe[MAX_CLIENT_PIPE_NAME];
             strcpy(register_pipe, argv[1]);
             strcpy(manager_pipe_name, argv[2]);

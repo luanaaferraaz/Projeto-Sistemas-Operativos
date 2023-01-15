@@ -19,10 +19,6 @@ int sub_pipe = -2;
 static void sig_handler(int sig) {
 
   if (sig == SIGINT) {
-    // In some systems, after the handler call the signal gets reverted
-    // to SIG_DFL (the default action associated with the signal).
-    // So we set the signal handler back to our function after each trap.
-    //
     signal(SIGINT, SIG_DFL);
     if(close(sub_pipe)==-1) { //closing session
         fprintf(stderr,"Failed to close pipe(%s): %s\n", sub_pipe_name,
@@ -31,7 +27,7 @@ static void sig_handler(int sig) {
     }
     printf("\n%d\n", message_count);
     raise(SIGINT);
-    return; // Resume execution at point of interruption
+    return; 
   }
 
 }
@@ -70,7 +66,7 @@ void wait_for_messages() { // wait for publisher messages
         char *code_received=strtok(buffer, "|");
         if(atoi(code_received)==RECEIVED_MSG){
             char *message=strtok(NULL, "\0");
-            while(message!=NULL){
+            while(message!=NULL){ // read all input messages until the end
                 message_count++;
                 fprintf(stdout, "%s", message);
                 message=strtok(NULL, "\0");
@@ -106,6 +102,5 @@ int main(int argc, char **argv) {
         wait_for_messages();
     }        
         
-
     return -1;
 }

@@ -19,11 +19,6 @@ int pub_pipe = 0;
 static void sig_handler(int sig) {
 
   if (sig == SIGPIPE) {
-    // In some systems, after the handler call the signal gets reverted
-    // to SIG_DFL (the default action associated with the signal).
-    // So we set the signal handler back to our function after each trap.
-    //
-    puts("SIGPIPEE");
     signal(SIGPIPE, SIG_DFL);
     if(close(pub_pipe)==-1) { //closing session
         fprintf(stderr,"Failed to close pipe(%s): %s\n", pub_pipe_name,
@@ -31,31 +26,28 @@ static void sig_handler(int sig) {
         exit(EXIT_FAILURE);  
     }
     raise(SIGINT);
-    return; // Resume execution at point of interruption
+    return; 
   }
 
 }
 
-// check if user entered EOF in stdin
-// gets the first character from the input and checks if it is EOF,
-// if it isn't EOF puts the charater back because it may be part of the
-// message the pub wrote.
+
 int check_for_EOF() {
     if (feof(stdin)) return 1;
-    int c = getc(stdin);
+    int c = getc(stdin); // get first charater
     if (c == EOF) return 1;
-    ungetc(c, stdin);
+    ungetc(c, stdin); //if it is not EOF puts the charater back because it may be part of the message the pub wrote
     return 0;
 }
 
 void wait_for_messages(){ // wait for input messages
+
     char *reading = NULL;
-    pub_pipe = open(pub_pipe_name, O_WRONLY); //TO DO é preciso alguem à espera de read desta pipe, a thread
+    pub_pipe = open(pub_pipe_name, O_WRONLY); 
     if(pub_pipe==-1){
         fprintf(stderr, "Failed to open: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    //while it doesn´t read EOF from the input, runs
 
     while(!check_for_EOF()){
         size_t len = 0;

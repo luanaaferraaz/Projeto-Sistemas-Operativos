@@ -11,6 +11,7 @@
 #include "requests.h"
 
 char server_pipe_name[MAX_CLIENT_PIPE_NAME];
+
 int write_message(int pipe, char *buffer){
     size_t len = strlen(buffer);
     size_t written = 0;
@@ -26,8 +27,8 @@ int write_message(int pipe, char *buffer){
     return 0;
 }
 
+void send_error(int pipe, char *code, char *return_code, char *error_message) { // make the message to write on pipe
 
-void send_error(int pipe, char *code, char *return_code, char *error_message) {
   char buffer[MAX_ERROR_MESSAGE+20] = "";
   strcpy(buffer, code);
   strcat(buffer, "|");
@@ -39,6 +40,7 @@ void send_error(int pipe, char *code, char *return_code, char *error_message) {
   
 }
 
+// wire protocol - write on pipe and made the interaction between server and clients with pipe messages
 void send_msg_request_list(int pipe, char *code, char *client_pipe_name){
   char buffer[MAX_CLIENT_PIPE_NAME+20] = "";
   strcat(buffer, code);
@@ -96,9 +98,10 @@ void send_request(int code, char* register_pipe_name, char *client_pipe_name, ch
     }
 }
 
+// call send_msg_request_list with opened pipe and listing code
 void send_request_list(char* register_pipe_name, char *client_pipe_name){
+
     memset(register_pipe_name + strlen(register_pipe_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(register_pipe_name)) -1);
-    //verificar se o client pipe name ja existe
     memset(client_pipe_name + strlen(client_pipe_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_pipe_name)) -1);
 
     int pub_pipe = open(register_pipe_name, O_WRONLY);
@@ -106,22 +109,26 @@ void send_request_list(char* register_pipe_name, char *client_pipe_name){
       fprintf(stderr, "Failed to open: %s\n", strerror(errno));
       exit(EXIT_FAILURE);
     }
-    send_msg_request_list(pub_pipe, "7", client_pipe_name); //list e falta a respostaaaaaaaaaaaaaaaaaa---------------
+    send_msg_request_list(pub_pipe, "7", client_pipe_name); 
 }
 
 void send_response(char* code, char* client_name, int return_code, char* error_message) {
+
   memset(client_name + strlen(client_name), '\0', sizeof(char)*(MAX_CLIENT_PIPE_NAME - strlen(client_name)) -1);
+
   int message_pipe = open(client_name, O_WRONLY);
   if(message_pipe==-1){
     fprintf(stderr, "Failed to open: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
+
   memset(error_message + strlen(error_message), '\0', sizeof(char)*(MAX_ERROR_MESSAGE - strlen(error_message) -1));
+
   if(return_code == -1) {
-    send_error(message_pipe, code, "-1", error_message);
+    send_error(message_pipe, code, "-1", error_message); // there is something wrong because return_code is -1, so we want do write error_message content
   }
   else if(return_code == 0) {
-    send_error(message_pipe, code, "0", error_message);
+    send_error(message_pipe, code, "0", error_message); // there is nothing wrong so we write error_message content that is just ""
   }
   
   
