@@ -44,6 +44,7 @@ void wait_for_messages() { // wait for publisher messages
         exit(EXIT_FAILURE);        
     }
     char buffer[MAX_MESSAGE_SIZE+5] = "";
+    bool first = true;
     size_t size_of_buffer = 0; //so we can keep the size of the buffer after reading it before we split it
     while(true){
         
@@ -56,7 +57,15 @@ void wait_for_messages() { // wait for publisher messages
             exit(EXIT_FAILURE); 
         }
         size_of_buffer = strlen(buffer);
-
+        if(first){
+            // need to count how many messages where in the buffer at the first time
+            for(int i = 0; i < size_of_buffer; i++){
+                if(buffer[i]=='\n')message_count++;
+            }
+            first = false;
+            // since the last one will be increased when printing, need to decrease 1 the counter
+            message_count--;
+        }
         //read something
         char *code_received=strtok(buffer, "|");
         if(atoi(code_received)==RECEIVED_MSG){

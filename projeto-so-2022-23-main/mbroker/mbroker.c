@@ -44,7 +44,6 @@ struct box_info boxes[MAX_BOXES];
 int write_message_box(char *message, char *box_name){ // write message in box (write on a tfs file)
     int handler = 0;
     if((handler = tfs_open(box_name, TFS_O_APPEND))==-1){
-        puts("ERRO");
         return -1; //box no longer exists 
     }
     strcat(message, "\0");
@@ -316,7 +315,6 @@ void work_with_manager_listing(){
             strcat(message, "|");
 
             char str_box_size[20] = "";
-            //printf("%zu\n", box_size);
             sprintf(str_box_size, "%zu", box_size);
             strcat(message, str_box_size);
             strcat(message, "|");
@@ -496,7 +494,6 @@ void work_with_manager_removing(char *client_name, char *box_name) {
         fprintf(stderr,"Failed to create fifo here.\n");
         exit(EXIT_FAILURE);
     }
-    puts(error_message);
     send_response(remove_box_err, client_name, return_code, error_message);
                 
 }
